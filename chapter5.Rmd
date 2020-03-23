@@ -1,6 +1,6 @@
 # Text analysis 
 
-In what follow we continue our analsis by focusing on the text variables. Data was query in isearch using the term "disease burden" resulting in 613 publications. We focused the analysis on "title", "Mesh extracted", " Abstracts", and "Condition".We intend to identify the most comon organisms and disease burden metrics that occurs the most.
+In what follow we continue our analsis by focusing on the text variables for specific initiatives. Our analysis focused on the [Tropical Medicine Research Centers](https://www.niaid.nih.gov/research/tropical-medicine-research-centers) initiative (RFA AI16-002, RFA AI00-009, RFA AI06-006, and RFA AI11-001)  and data was query in isearch using the term "disease burden" resulting in 613 publications. We focused the analysis on "title", "Mesh extracted", " Abstracts", and "Condition". We intend to identify the most comon organisms and disease burden metrics that occurs the most.
 
 ```{r  echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
 library("tm")
@@ -235,6 +235,9 @@ ggplot(Sample_organism2, aes(x =Word.Name, y = Word.Count)) +
 
 
 ```
+
+
+From this analysis we note that the most common organisms under studied in this initiative are Leishmaniasis, Chagas, and Schistosomiasis while Prevalence, incidence, and mortality are some of the most common measures used to study these organisms.
 
 
 

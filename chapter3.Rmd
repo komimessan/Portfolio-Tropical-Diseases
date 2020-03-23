@@ -2,7 +2,7 @@
 
 In this section, we studied the level of disease burden in countries where funded was received from NIAID. Our analysis focused on checking whether the level of disease burden correlate with countries' poverty level. In this study, we used the per capita GDP (obtained from the [world bank database](https://databank.worldbank.org/reports.aspx?source=2&series=NY.GDP.PCAP.PP.KD&country=#)) to evaluate countries' poverty level. Given the fact that, certain countries will have a higher population and therefore the burden may seems higher, we extracted the population size (again from the [world bank database](https://databank.worldbank.org/reports.aspx?source=2&series=NY.GDP.PCAP.PP.KD&country=#)) from 1990 to 2017 and took the average of both the population size and the per capita GDP of 1990 to 2017. The average population size was used to calculate the per capita burden in  a country (i.e. DALYs/population). 
 
-All the data were scaled for ease of comparison and we plotted both all countries data and certain a subset of the data that does not include countries in the northern or southern hemisphere since these are not in the tropical regions and should not have neglect tropical diseases. these plots were however included seprately in the presentation and thus not in this RMD file. 
+All the data were scaled for ease of comparison and we plotted both all countries data and certain subset of the data that does not include countries in the northern or southern hemisphere since these are not in the tropical regions and should not have neglect tropical diseases. these plots were however included seprately in the presentation and thus not in this RMD file. 
 
 
 ```{r  message=FALSE, warning=FALSE, include=FALSE}
@@ -105,7 +105,7 @@ Diseases_GDP <- Diseases_GDP %>%
 ```
 
 
-
+## Disability-Adjusted Life Years (DALYs)
 
 
 ```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
@@ -163,23 +163,45 @@ long_to_wide <- function(Data, BurdenID, PerCapitaBurden){
 DALYs <- long_to_wide(Diseases_GDP,"2", "Yes")
 pheatmap(DALYs, scale = "none", legend = TRUE,cluster_rows = FALSE, fontsize = 13)
 
+```
+
+## Years of Life Lost (YLLs)
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
 ## YLLs (Years of Life Lost)
 YLLs <- long_to_wide(Diseases_GDP,"4","Yes")
 pheatmap(YLLs, scale = "none", legend = TRUE, cluster_rows = FALSE, fontsize = 13)
+```
 
+## Years Lived with Disability (YLDs)
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
 ## YLDs (Years Lived with Disability)
 YLDs <- long_to_wide(Diseases_GDP,"3","Yes")
 pheatmap(YLDs, scale = "none", legend = TRUE, cluster_rows = FALSE, fontsize = 13)
 
+```
+
+## Mortality
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
 ## Deaths
 Deaths <- long_to_wide(Diseases_GDP,"1","Yes")
 pheatmap(Deaths, scale = "none", legend = TRUE,cluster_rows = FALSE, fontsize = 13)
+```
 
+## Incidence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
 ## Incidence
 Incidence <- long_to_wide(Diseases_GDP,"6","Yes")
 pheatmap(Incidence[,c(1,2,5,6,9)], scale = "none", legend = TRUE,cluster_rows = FALSE,
          fontsize = 13)
+```
 
+## Prevalence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
 ## Prevalence
 Prevalence <- long_to_wide(Diseases_GDP,"5","Yes")
 pheatmap(Prevalence[,c(1,2,5,6,9)], scale = "none", legend = TRUE, cluster_rows = FALSE,
@@ -188,7 +210,7 @@ pheatmap(Prevalence[,c(1,2,5,6,9)], scale = "none", legend = TRUE, cluster_rows 
 ```
 
 
-
+The level of burden in countries change depending on disease burden metric used. However, Brazil Phillipines and Nicaragua saw a very high level of disease burden. Leishmaniasis, Chagas, and Schistosomiasis were the most concentrated disease in Brazil while Dengue, Lymphatic Filariasis, and Trichuriasis were the most concentrated in the other countries. Asd should be expected, countries with the highest GDP per capita did not see any increase a high level of disease burden given the fact that they were not in a tropical area. 
 
 
 

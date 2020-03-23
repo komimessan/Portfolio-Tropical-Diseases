@@ -86,7 +86,7 @@ group_by(Diseases2, year, measure_name, measure_id) %>%
 ```
 
 
-
+### Disability-Adjusted Life Years (DALYs) and Funding
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 
@@ -148,7 +148,13 @@ Plot.Separate <- function(Data,BurdenID, ylab){
 
 Plot.Separate(Burden2, "2", "Log of Funding/Disability-Adjusted Life Years (in Millions)")
 
+```
 
+Chagas, Leishmaniasis, and Echinococcus saw a decreasing trend in both funding and DALY. Dengue however saw an increasing pattern in both and this illustrate the fact that funding has not reach the critical point that will allow disease to see a decreasing pattern. Schistosomiasis however saw an inverse U shape with the minimum occuring around 2004-2006 which show the effect of funding toward the burden.
+
+### Years of Life Lost (YLLs) and Funding
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #### YLLs (Years of Life Lost)
 ## Together
 #Plot.Together(Burden2, "4","Years of Life Lost (YLLs; in Millions)")
@@ -156,6 +162,13 @@ Plot.Separate(Burden2, "2", "Log of Funding/Disability-Adjusted Life Years (in M
 ## Separate
 Plot.Separate(Burden2, "4", "Log of Funding/Years of Life Lost (in Millions)")
 
+```
+
+Similar to DALY we obserevd several increading patterns (e.g. Dengue). Echinoccoccus however saw a shraper decrease in YLLs. Several burdens were not calculated (Lymphatic Filariasis, Hookworm, Trichurias) due to asbence in data.
+
+### Years Lived with Disability (YLDs) and Funding 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 
 #### YLDs (Years Lived with Disability)
 ## Together
@@ -164,7 +177,13 @@ Plot.Separate(Burden2, "4", "Log of Funding/Years of Life Lost (in Millions)")
 ## Separate
 Plot.Separate(Burden2, "3", "Log of Funding/Years Lived with Disability (in Millions)")
 
+```
 
+As opposed to in DALYs and YLLs, Echinoccoccus saw an increased in YLDs. However Dengue still has an increasing pattern. Lymphatic Filariasis illustrated a an inverse U shaped as we have seen for Echinoccoccus in DALY and the minimum occured around 20004-2006.
+
+### Mortality and Funding
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #### Deaths
 ## Together
 #Plot.Together(Burden2, "1","Number of Mortality (in Millions)")
@@ -173,6 +192,15 @@ Plot.Separate(Burden2, "3", "Log of Funding/Years Lived with Disability (in Mill
 Plot.Separate(Burden2, "1", "Log Funding/Number of Mortality (in Millions)")
 
 
+```
+
+Mortality data did not exist for most of these neglected tropical diseases thus we plotted only the funding. Diseases that have death saw similar trend as in DALYs but with different magnitude.
+
+
+### Incidence and Funding 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+
 #### Incidence
 ## Together
 #Plot.Together(Burden2, "6","Number of Incidence (in Millions)")
@@ -180,7 +208,15 @@ Plot.Separate(Burden2, "1", "Log Funding/Number of Mortality (in Millions)")
 ## Separate
 Plot.Separate(Burden2, "6", "Log of Funding/Number of Prevalence (in Millions)")
 
+```
 
+
+As in previous cases, Lymphatic Filariasis and Hookworm have only zero incidence number so value plotted on the log scale were not display. Leishmaniasis however showa decreasing pattern up to 1998 and start increasing again. A couple years later, the burden start increasing again and close to 2012, it start decreasing again, Such behavior has not be observed using different metric.
+
+
+### Prevalence and Funding
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #### Prevalence
 ## Together
 #Plot.Together(Burden2, "5","Number of Incidence (in Millions)")
@@ -190,11 +226,12 @@ Plot.Separate(Burden2, "5", "Log of Funding/Number of Prevalence (in Millions)")
 
 ```
 
+Now for the first time, we observed burden for Leishmaniasis increasing throughout 2017. Overall. Dengue has been increasing independently of the burden metric.
 
 
 ## Regression analysis on Funding for 1997, 2007, 2017 with respect to DALYs of 1995, 2005, and 2015
 
-Here, we performed a regression analysis by taking NIAID Funding from 1997, 2007, 2017 as depending variables and DALYs from 1995, 2005, and 2015v respectively as independent variable. Recall that to account for inflation, all funding values were deflated to 1992. Two regression models were constructed. One non-constrained model (solid line) and another constrained model that assumed no burden receives no funding (i.e. no intercept; dashed line).
+Here, we performed a regression analysis by taking NIAID Funding from 1997, 2007, 2017 as depending variables and DALYs from 1995, 2005, and 2015v respectively as independent variable. Recall that to account for inflation, all funding values were deflated to 1992. Two regression models were constructed. One non-constrained model (solid line) and another constrained model that assumed no burden receives no funding (i.e. no intercept; dashed line). The R^2 which is a measure that represents the proportion of the variance for a dependent variable (e.g. Funding) that is explained by the independent Variable (DALYs) was shown only for the non-constrained model. We also show the Slope of the non-constrained model. This slope represents on average, how much unit (in million of Dollars) of duning we can expect for every additional unit (in million) of DALYs.  
 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
@@ -354,10 +391,10 @@ disease_award.plus2 <- disease_award.plus %>%
 ```
 
 
+### DALYs of neglected and non-neglected tropical diseases
 
 
-
-```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 18}
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=7, fig.width= 18}
 
 
 
@@ -407,6 +444,15 @@ ggplot(data = disease_award.plus, aes(x = Value/1000000, y = Award_defl/1000000)
   theme_bw() + Nice.Label2
 
 
+```
+
+From the plot above, it is obvious to see during the year 1995, 2005, and 2015 (which corresponds to the DALY years) that HIV/AIDS, Malaria, and Tuberculosis represent outliers in the plot with HIV/AIDS being the largest outliers. We note however that while there was a huge increase of fudning toward HIV/AIDS from 1995 to 2005, the DALYs has alwasy seen a tremendous increased as illsutrated on the x-axis. Thus these graphs should be carefully read as a two-dimensional object. Inflenza B seems not to be such a great outlier in all years measured (i.e. 1995, 2005, and 2015). Another observation that can be seen here is that the slopes are always positive illsutrating the average positive response of funding on burden. Moreover, the slopes show an increasing pattern from 1995 to 2015 which point to the fact that not only the response is positive but it increases throughout the year. We however note that this analysis does not conclude that the funding response to the disease is sufficient. Further work need to be done to answer such question.
+
+### DALYs of only neglected tropical diseases
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=7, fig.width= 18}
+
 ## Plot the data without outlier (i.e. TB, Malaria, HIV/AIDS, Influenza B) and regression 
 ggplot(data = disease_award.plus2, aes(x = Value/1000000, y = Award_defl/1000000)) +
   geom_point(size = 2, color = "black") +
@@ -426,6 +472,18 @@ ggplot(data = disease_award.plus2, aes(x = Value/1000000, y = Award_defl/1000000
 ###################### 
 ## Create a function to find the linear regression and find difference between actual and predicted value
 
+
+```
+
+
+As in the analysis with non-neglected tropical diseases, our slope were postives and illustrated and increasing pattern. We note that all diseases below the regression lines are underfunded and those that are above the regression lines are overfunded with respect to the funded disease. With this knowledge, it can be observed that certain diseases were underfunded throughout the years (e.g. Hookworm, Trichuriasis, Lymphatic Filariasis). Certain diseases such Dengue were underfunded in 1995 and became overfunded. We also point out to the magnitude at which these diseases are either underfunded or overfunded. The magnitude can be seen byu the difference of te actual disease data to the regression line. For instance, while both hookworm and Lymphatic Filariasis were underfunded in 2005, Hookworm was much more underfunded and was not in the 99% confidence interval. This point to the need to which diseases to focus future funding on.
+
+
+
+
+### HIV/AIDS Funding and disease burden
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 15}
 Actual_Pred_func <- function(Data){
   # Data is a dataframe containing the Diseases category, Year ,Funding, and Disease burden
   # Subset the data by year
@@ -518,11 +576,13 @@ ggplot(subset(HIV_data,measure_name=="Deaths"), aes(x = factor(Year, levels = c(
 ```
 
 
+In addition to the regression analysis that illustrate the relationship between funding and burden, we plotted the HIV/AIDS data to show the sudden large increase in both funding from 1995 to 2005 was not an articfact from the data butr rather represent actual values. For these reasons, we plotted all burden metric for HIV/AIDS and all data show a similar pattern. We did not however go into detail analysis of this data as the focus of this project is on neglected tropcial diseases.
 
 
 ## Correlation between disease burden and awards
 
-Spearman correlation was performed between the funding the disease burdens. The correlation table is attched separately.  
+Spearman correlation was performed between the funding the disease burdens. The correlation table is attched separately (see presentation slide). The code to perfrom these correlation is however provided in the chapter.rmd file.
+
 
 ```{r  echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
 

@@ -335,6 +335,10 @@ Funding_Other_Fit2 <- arima(Funding_ts2[,9],order = Funding_param2[9,], method =
 
 ## Cross Validation
 
+To perform the cross validation, data from 1990 to 2010 were used to predict data from 2011 to 2017. The predicted results from 2011 to 2017 were compared to the actual value.
+
+
+
 ```{r  message=FALSE, warning=FALSE, include=FALSE}
 
 #### Cross validation
@@ -656,7 +660,7 @@ merge_pred_Funding <- left_join(data_awards2, Funding_pred, by = c("Year","Disea
 ```
 
 
-
+### Disability-Adjusted Life Years (DALYs)
 
 
 ```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
@@ -692,25 +696,73 @@ PredictionPlot.func <- function(MergePred_Burden, ylab, endYear){
 #DALYs
 PredictionPlot.func(merge_pred_DALYs,"Disability-Adjusted Life Years (in Millions)", 2017)
 
+
+```
+
+Withe the exception of the Lymphatic Filariasis, cross-validation for all disease burdens seem to follow the actual data pattern. In addition, we note that all predicted value are in the confidence interval.
+
+
+### Years of Life Lost (YLLs)
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+
 #YLLs
 PredictionPlot.func(merge_pred_YLLs,"Years of Life Lost (in Millions)", 2017)
 
+```
+ 
+ Given that YLLs data was not available for all diseases, prediction wree conducted for only 6 diseases and the cross-validation was accurate. We however not that Echinococcus have a constant term meaning predicting into the future may lead to a large error.
+ 
+ 
+### Years Lived with Disability (YLDs)
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #YLDs
 PredictionPlot.func(merge_pred_YLDs,"Years Lived with Disability (in Millions)", 2017)
+```
 
+
+Cross-validation for YLDs shows similar trend as in DALYs. Howwver the value predicted for Schistosomiasis appear to be constant leading to the fact that the model may not be doing so well on this disease. 
+
+
+### Mortality
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #Deaths
 PredictionPlot.func(merge_pred_Deaths,"Number of Mortality (in Millions)", 2017)
+```
 
+The mortality cross-validation also has some missing diseases given the fact that some of the neglected diseases caused a lot of burden but are not generally deadly. we not that diseases such as Leishmaniasis and Chagas appear to show a constant prediction (i.e. p and q from the ARIMA model equal to 0).
+
+### Incidence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #Incidence
 PredictionPlot.func(merge_pred_Incidence,"Number of Incidence (in Millions)", 2017)
+```
 
+Data were not available for the incidence of Hookworm, Lymphatic Filariasis, Trichuriasis, and Schistosomiasis and thus were not included in this analysis. However, the cross-validation accuracy was good for all disease available.
+
+### Prevalence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #Prevalence
 PredictionPlot.func(merge_pred_Prevalence,"Number of Prevalence (in Millions)", 2017)
+```
 
+We generally observed a good prediction for the prevalence. However, Lymphatic Filariasis seem to have a very bad prediction and prediction were outside of the 99% confidence interval.
+
+### Funding 
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 ## Funding
 PredictionPlot.func(merge_pred_Funding, "Funding (in Millions of Dollars)", 2017)
 
 ```
+
+looking at teh funding data compared to the burden data, it is easy to notice that the funding data is much noisier. because of the high level of noise, the model given its univariate essence was not able to do a good prediction. Most prediction were constant. We note that this could be fixed either by providing more time points or using a multivariate statistical approach.
 
 
 ## Forecasting into the future
@@ -1033,6 +1085,8 @@ merge_pred2_Incidence <- merge_pred2(Burden2,"6",Incidence_pred2)
 #Prevalence
 merge_pred2_Prevalence <- merge_pred2(Burden2,"5",Prevalence_pred2)
 
+
+
 ## Funding
 #Funding_pred2$Year <- as.factor(Funding_pred2$Year) # Convert year to numeric
 merge_pred2_Funding <- full_join(data_awards2, Funding_pred2, by = c("Year","Diseases")) %>% 
@@ -1042,34 +1096,63 @@ merge_pred2_Funding <- full_join(data_awards2, Funding_pred2, by = c("Year","Dis
 ```
 
 
-
+### Disability-Adjusted Life Years (DALYs)
 
 ```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 
 #DALYs
 PredictionPlot.func(merge_pred2_DALYs,"Disability-Adjusted Life Years (in Millions)", 2030)
+```
 
+### Years of Life Lost (YLLs)
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #YLLs
 PredictionPlot.func(merge_pred2_YLLs,"Years of Life Lost (in Millions)", 2030)
 
+```
+
+### Years Lived with Disability (YLDs)
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #YLDs
 PredictionPlot.func(merge_pred2_YLDs,"Years Lived with Disability (in Millions)", 2030)
 
+
+```
+
+### Mortality
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #Deaths
 PredictionPlot.func(merge_pred2_Deaths,"Number of Mortality (in Millions)", 2030)
+```
 
+### Incidence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #Incidence
 PredictionPlot.func(merge_pred2_Incidence,"Number of Incidence (in Millions)", 2030)
+```
 
+### Prevalence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 #Prevalence
 PredictionPlot.func(merge_pred2_Prevalence,"Number of Prevalence (in Millions)", 2030)
+```
 
+
+### Funding
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
 ## Funding
 PredictionPlot.func(merge_pred2_Funding, "Funding (in Millions of Dollars)", 2030)
 
 ```
 
 
+We niote from all prediction that the optimum parameter values for p and q happen to be 0 or 1. This yield a constant prediction. We hypothesis that this could be due to our short data frame. It is recommended to use at least 50 time points when conducting an ARIMA model so having more time point may correct this issue. Moreover, we point out that there could be other variable not taken into account that is affecting our future prediction given that ARIMA is a univariate model. Having a multivariate time serie model where we incorporate at least both funding and burden may provide better accuracy. We then conclude that the prediction into the future may not be constant as observe in this work if one was to use more times series data in addition to a multivariate statistical approach.
 
 
 ```{r  echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}

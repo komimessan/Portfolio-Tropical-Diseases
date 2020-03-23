@@ -61,7 +61,7 @@ library("tseries")
 #### Extract all files from sir1492 folder and combine them by columns
 
 ## Change directory to sir1492 folder
-setwd("H:/Projects/Rotations/OSPIDA_DARB_Nov2019/Neglected_Tropical_Diseases/Portfolio-Tropical-Diseases/sir1492")
+setwd("C:/Users/messanks/OneDrive/Projects/Rotations/OSPIDA_DARB_Nov2019/Neglected_Tropical_Diseases/Portfolio-Tropical-Diseases/sir1492")
 
 files.name <- list.files() # Obtain all files name
 
@@ -251,7 +251,7 @@ leaflet(data = data_map_int) %>%
 
 ```
 
-
+Both map (i.e. static by country and interactive by city/US state) illustrated a cluster of funding in US and Europe. There were several funding in south America and Asia as well. Asutralia also saw a few funding throughout teh years studied here. In general U.S. has the most awards and the largest amount of funding.   
 
 ## Funding on Neglected Tropical Disease from 1990 to 2017
 
@@ -352,6 +352,8 @@ ggplot(data_awards2, aes(x = factor(Year, levels = c(1990:2017), labels = c(1992
 
 ```
 
+
+The plot of various funding shows an increasing pattern for most funding. While all the funding data are noisy, it can be observed that funding toward certain diseases were more constant (i.e. Echinococcus, Hookworm). Dengue and Chagas were some of the fundings that illustrated the increasing pattern the most.
 
 
 ```{r  message=FALSE, warning=FALSE, include=FALSE}
