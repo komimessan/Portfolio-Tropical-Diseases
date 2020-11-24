@@ -1,2 +1,2 @@
 # Portfolio-Tropical-Diseases
-To conduct portfolio analysis on Neglected tropical diseases
+To conduct portfolio analysis on Neglected Tropical Diseases
