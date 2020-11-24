@@ -1,0 +1,5 @@
+# New award map
+In this section, we created new map that contain award by countries and also we color coded the country by the diseases burden level. 
+
+## Combining all files
+
