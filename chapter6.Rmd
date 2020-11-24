@@ -3,3 +3,10 @@ In this section, we created new map that contain award by countries and also we 
 
 ## Combining all files
 
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+
+
+```
+
+
+
