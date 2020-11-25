@@ -6,7 +6,36 @@ In this section, we created new map that contain award by countries and also we 
 ```{r  message=FALSE, warning=FALSE, include=FALSE}
 
 
+## Read in all data from the sir957 folder
 
+#### Extract all files from sir957 folder and combine them by columns
+
+## Change directory to sir957 folder
+setwd("C:/Users/messanks/OneDrive/Projects/Rotations/OSPIDA_DARB_Nov2019/Neglected_Tropical_Diseases/sir957")
+
+files.name957 <- list.files() # Obtain all files name
+
+## Combine all the file in the directory (this line below will take 13 seconds)
+## Remove all the top 5 rows and last 4 rows of each file
+ptm <- proc.time()
+rbind957_90_19 <- do.call("rbind",lapply(files.name957, 
+                                  FUN=function(files){
+                                    file <- read.xlsx(files,startRow = 6,colNames = TRUE)
+                                    n <- dim(file)[1]
+                                    new.file <- file[1:(n-4),]
+                                    return(new.file)
+                                    }
+                                  )
+                   )
+proc.time() - ptm
+
+## Change directory back to the previous parent directory
+setwd("C:/Users/messanks/OneDrive/Projects/Rotations/OSPIDA_DARB_Nov2019/Neglected_Tropical_Diseases/Portfolio-Tropical-Diseases")
+
+rbind957_90_19 <- rbind957_90_19 %>% arrange(Fiscal.Year)
+
+File957_applid0 <- subset(rbind957_90_19,IMPACII.Appl.ID =="0")
+File1492_applid0 <- subset(rbind_90_19,IMPACII.Appl.ID =="0")
 
 ```
 
