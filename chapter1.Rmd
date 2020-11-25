@@ -61,7 +61,7 @@ library("tseries")
 #### Extract all files from sir1492 folder and combine them by columns
 
 ## Change directory to sir1492 folder
-setwd("C:/Users/messanks/OneDrive/Projects/Rotations/OSPIDA_DARB_Nov2019/Neglected_Tropical_Diseases/Portfolio-Tropical-Diseases/sir1492")
+setwd("C:/Users/messanks/OneDrive/Projects/Rotations/OSPIDA_DARB_Nov2019/Neglected_Tropical_Diseases/sir1492")
 
 files.name <- list.files() # Obtain all files name
 
@@ -80,7 +80,7 @@ rbind_90_19 <- do.call("rbind",lapply(files.name,
 proc.time() - ptm
 
 ## Change directory back to the previous parent directory
-setwd("..")
+setwd("C:/Users/messanks/OneDrive/Projects/Rotations/OSPIDA_DARB_Nov2019/Neglected_Tropical_Diseases/Portfolio-Tropical-Diseases")
 
 
 #### Select relevant columns from the 1990-2019 data
