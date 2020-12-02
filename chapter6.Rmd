@@ -2,7 +2,8 @@
 In this section, we created new map that contain award by countries and also we color coded the country by the diseases burden level. 
 
 ## Combining all files
-
+ We combined, Funding data with population data per country, and disease burden data by focusing more on DALYs as disease burden
+ 
 ```{r  message=FALSE, warning=FALSE, include=FALSE}
 
 
@@ -34,10 +35,242 @@ setwd("C:/Users/messanks/OneDrive/Projects/Rotations/OSPIDA_DARB_Nov2019/Neglect
 
 rbind957_90_19 <- rbind957_90_19 %>% arrange(Fiscal.Year)
 
-File957_applid0 <- subset(rbind957_90_19,IMPACII.Appl.ID =="0")
-File1492_applid0 <- subset(rbind_90_19,IMPACII.Appl.ID =="0")
+## Select only QVR in 957 that are in 1492
+file957 <- subset(rbind957_90_19, 
+                  `QVR.#` %in% intersect(rbind957_90_19$`QVR.#`,rbind_90_19$`QVR.#`))
+file1492 <- rbind_90_19
+
+#### Select relevant columns from the two datasets
+sub.file957 <- file957 %>% 
+  select(`QVR.#`, IMPACII.Appl.ID,Project.ID,Fiscal.Year, Category.1, Category.2, 
+         Institution.City, Institution, Institution.State, 
+         Awardee.Institution.Country, `Prorated.$.(no.RMS)`) 
+
+sub.file1492 <- file1492 %>% 
+  select(`QVR.#`,IMPACII.Appl.ID, Project.ID, Fiscal.Year, Category.3)
+  
+#### Add Country where funding was awarded to sub.file957
+sub.file957$Country <- sub.file957$Category.1
+sub.file957$Country <- trimws(sub.file957$Country) ## Remove empty spaces
+sub.file957$Country[sub.file957$Country=="International Health, Other"] <- subset(sub.file957, Category.1=="International Health, Other")$Category.2
+sub.file957$Country <- trimws(sub.file957$Country) ## Remove empty spaces
+sub.file957$Country[sub.file957$Country=="Foreign Awards"] <- subset(sub.file957, Category.1=="Foreign Awards")$Category.2
+sub.file957$Country[sub.file957$Country=="Subcontract Dollars"] <- subset(sub.file957, Category.1=="Subcontract Dollars")$Category.2
+
+## Replace those with "Domestic with Foreign Component", "Other International Collaborations", and "NOT STATED" with "UNITED STATES"
+sub.file957$Country[sub.file957$Country=="Domestic with Foreign Component"] <- "UNITED STATES"
+sub.file957$Country[sub.file957$Country=="Other International Collaborations"] <- "UNITED STATES"
+sub.file957$Country[sub.file957$Country=="NOT STATED"] <- "UNITED STATES"
+
+## Change certain countries' name
+sub.file957$Country[sub.file957$Country=="SWAZILAND"] <- "ESWATINI"
+sub.file957$Country[sub.file957$Country=="TAIWAN"] <- "CHINA"
+sub.file957$Country[sub.file957$Country=="HONG KONG"] <- "CHINA"
+sub.file957$Country[sub.file957$Country=="FRENCH POLYNES"] <- "FRANCE"
+sub.file957$Country[sub.file957$Country=="KOREA PEO REP"] <- "KOREA"
+sub.file957$Country[sub.file957$Country=="KOREA REP OF"] <- "SOUTH KOREA" 
+sub.file957$Country[sub.file957$Country=="TRINIDAD/TOBA"] <- "TRINIDAD/TOBAGO" 
+sub.file957$Country[sub.file957$Country=="TANZANIA U REP"] <- "TANZANIA"
+sub.file957$Country[sub.file957$Country=="BURMA"] <- "MYANMAR"
+sub.file957$Country[sub.file957$Country=="BURKINA"] <- "BURKINA FASO"
+
+# ## Apple ID that are zero in File 1492 and 957
+# File957_applid0 <- subset(rbind957_90_19,IMPACII.Appl.ID =="0")
+# File1492_applid0 <- subset(rbind_90_19,IMPACII.Appl.ID =="0")
 
 ```
+
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+## Add Organisms Category to the file 957
+
+sub.file957_org <- left_join(sub.file957, sub.file1492, 
+                             by = c('QVR.#',"IMPACII.Appl.ID", "Project.ID", "Fiscal.Year"))
+
+## Extract the organism NIAID code 
+numextract_file957 <- numextract(sub.file957_org$Category.3)
+  
+## Extract the organism name
+charextract_file957 <- charextract(sub.file957_org$Category.3, numextract_file957)
+
+## Add Code and organisms to the data
+sub.file957_org$Code <- numextract_file957
+sub.file957_org$Organisms <- charextract_file957
+
+## Now we extract the data with the Neglected Tropical organism codes 
+`%notin%` <- Negate(`%in%`) ## Define an opposite of %in% argument
+
+sub.file957_org2 <- sub.file957_org %>% 
+  filter(Code %in% Org.Code$Code) %>% ## all codes plus four Non-NTD
+  filter(Code %notin% c("4161","4162","4163","4168","4169","2651","2120"))
+
+## Create a Legend of the amount of money by Country
+Legend2 <- sub.file957_org2 %>% 
+  group_by(Country) %>% 
+  summarise(Amount = sum(`Prorated.$.(no.RMS)`, na.rm = TRUE)) %>% 
+  arrange(Amount) %>% 
+  mutate(Label = row_number()) %>% 
+  select(Label, Country, Amount) 
+  
+```
+
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+### Country Data with Latitude and Longitude
+## Read the map data
+worldcountry <- read.csv("Countries.csv", header = TRUE)
+country_coord <- worldcountry %>% select(Country, latitude, longitude)
+
+## Add latitude and longitude
+file957_coord <- left_join(sub.file957_org2,country_coord, by = "Country") 
+file957_coord <- file957_coord %>% rename(Year="Fiscal.Year")
+
+
+#### Create associated diseases category
+n957 <- dim(file957_coord)[1]
+
+Associated.Disease957 <- rep(NA, n957) # Empty vector of size n1
+
+for (i in 1:n957) {
+if (file957_coord$Code[i] == "4181" | file957_coord$Code[i] == "4182" | 
+    file957_coord$Code[i] == "4183" | file957_coord$Code[i] == "4188" | 
+    file957_coord$Code[i] == "4189") {
+  Associated.Disease957[i] = "Leishmaniasis"
+} else if (file957_coord$Code[i] == "4202") {
+  Associated.Disease957[i] = "Chagas"     
+} else if (file957_coord$Code[i] == "4311" | file957_coord$Code[i] == "4313") {
+  Associated.Disease957[i] = "Schistosomiasis"    
+} else if (file957_coord$Code[i] == "2613") {
+  Associated.Disease957[i] = "Dengue"    
+} else if (file957_coord$Code[i] == "4512" | file957_coord$Code[i] == "4513") {
+  Associated.Disease957[i] = "Lymphatic Filariasis"
+} else if (file957_coord$Code[i] == "4440") {
+  Associated.Disease957[i] = "Echinococcus"    
+} else if (file957_coord$Code[i] == "4540"){
+  Associated.Disease957[i] = "Trichuriasis"
+} else if (file957_coord$Code[i] == "4568"){
+  Associated.Disease957[i] = "Hookworm"
+} else {
+  Associated.Disease957[i] = "Other"    
+    }
+}
+
+
+## Group Leishmaniasis, Schistosoma, Chagas
+file957_coord$Diseases <- factor(Associated.Disease957,
+                               levels = c("Chagas","Leishmaniasis","Schistosomiasis",
+                                          "Lymphatic Filariasis", "Dengue", "Echinococcus",
+                                      "Hookworm","Trichuriasis","Other"))
+
+```
+
+
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+## Read in Population and Disease Burden data
+world_pop <- read.csv("Population_World_Development2.csv", header = TRUE)
+All_burden <- read.csv("IHME_GBD_2019_DATA2.csv", header = TRUE)
+
+###### World Population data
+## arrange population data from 1992 to 2019 and by country
+world_pop.ar <- world_pop %>%
+  rename("Country.Name" = "ï..Country.Name") %>% 
+  mutate(Country = toupper(Country.Name)) %>% 
+  rename_with(function(x){n= length(x); return((1991+1):(1991+n))},starts_with("X")) %>% 
+  tidyr::gather(Year, pop, "1992":"2019") %>% 
+  select(Country, Year, pop)
+
+#         mean_pop = rowMeans(select(., starts_with("X")), na.rm = TRUE)) %>% 
+  
+## Change name of certain countries in world population data
+world_pop.ar$Country[world_pop.ar$Country=="VENEZUELA, RB"] <- "VENEZUELA"
+world_pop.ar$Country[world_pop.ar$Country=="TRINIDAD AND TOBAGO"] <- "TRINIDAD/TOBAGO"
+world_pop.ar$Country[world_pop.ar$Country=="ST. KITTS AND NEVIS"] <- "ST KITTS/NEVIS"
+world_pop.ar$Country[world_pop.ar$Country=="SLOVAK REPUBLIC"] <- "SLOVAKIA"
+world_pop.ar$Country[world_pop.ar$Country=="RUSSIAN FEDERATION"] <- "RUSSIA"
+world_pop.ar$Country[world_pop.ar$Country=="PAPUA NEW GUINEA"] <- "PAPUA N GUINEA"
+world_pop.ar$Country[world_pop.ar$Country=="LAO PDR"] <- "LAOS"
+world_pop.ar$Country[world_pop.ar$Country=="KOREA, DEM. PEOPLEÂ€™S REP."] <- "KOREA"
+world_pop.ar$Country[world_pop.ar$Country=="KOREA, REP."] <- "SOUTH KOREA"
+world_pop.ar$Country[world_pop.ar$Country=="FRENCH POLYNESIA"] <- "FRANCE" 
+world_pop.ar$Country[world_pop.ar$Country=="HONG KONG SAR, CHINA"] <- "CHINA" 
+world_pop.ar$Country[world_pop.ar$Country=="EGYPT, ARAB REP."] <- "EGYPT" 
+world_pop.ar$Country[world_pop.ar$Country=="CONGO, REP."] <- "CONGO" 
+world_pop.ar$Country[world_pop.ar$Country=="CONGO, DEM. REP."] <- "CONGO DEM REP" 
+world_pop.ar$Country[world_pop.ar$Country=="GAMBIA, THE"] <- "GAMBIA" 
+
+## Add countries that have same name together
+world_pop.ar <- world_pop.ar %>% 
+  group_by(Country, Year) %>% summarise(pop = sum(pop, na.rm = TRUE)) %>% 
+  filter(Country != "")
+world_pop.ar$Year <- as.numeric(world_pop.ar$Year)
+
+####### Disease Burden data
+## SUM DALYs for all neglected tropical diseases and take average of 1992 to 2019
+burden.sum <- All_burden %>% 
+  mutate(Country = toupper(location_name)) %>% 
+  filter(measure_name == "DALYs (Disability-Adjusted Life Years)") %>% 
+  select(Country, year, measure_name, val) %>% 
+  group_by(Country, year) %>% 
+  summarize(sum_dalys = sum(val, na.rm = TRUE)) %>% 
+  rename(Year = "year") 
+
+## Change name of certain countries in world population data
+burden.sum$Country[burden.sum$Country=="DEMOCRATIC PEOPLE'S REPUBLIC OF KOREA"] <- "KOREA"
+burden.sum$Country[burden.sum$Country=="REPUBLIC OF KOREA"] <- "SOUTH KOREA"
+burden.sum$Country[burden.sum$Country=="VENEZUELA (BOLIVARIAN REPUBLIC OF)"] <- "VENEZUELA"
+burden.sum$Country[burden.sum$Country=="TRINIDAD AND TOBAGO"] <- "TRINIDAD/TOBAGO"
+burden.sum$Country[burden.sum$Country=="SAINT KITTS AND NEVIS"] <- "ST KITTS/NEVIS"
+burden.sum$Country[burden.sum$Country=="UNITED STATES OF AMERICA"] <- "UNITED STATES"
+burden.sum$Country[burden.sum$Country=="BOLIVIA (PLURINATIONAL STATE OF)"] <- "BOLIVIA"
+burden.sum$Country[burden.sum$Country=="DEMOCRATIC REPUBLIC OF THE CONGO"] <- "CONGO DEM REP"
+burden.sum$Country[burden.sum$Country=="LAO PEOPLE'S DEMOCRATIC REPUBLIC"] <- "LAOS"
+burden.sum$Country[burden.sum$Country=="PAPUA NEW GUINEA"] <- "PAPUA N GUINEA"
+burden.sum$Country[burden.sum$Country=="REPUBLIC OF MOLDOVA"] <- "MOLDOVA"
+burden.sum$Country[burden.sum$Country=="TAIWAN (PROVINCE OF CHINA)"] <- "CHINA"
+burden.sum$Country[burden.sum$Country=="UNITED REPUBLIC OF TANZANIA"] <- "TANZANIA"
+burden.sum$Country[burden.sum$Country=="VIET NAM"] <- "VIETNAM"
+burden.sum$Country[burden.sum$Country=="RUSSIAN FEDERATION"] <- "RUSSIA"
+burden.sum$Country[burden.sum$Country=="CZECHIA"] <- "CZECH REPUBLIC"
+
+
+## Add countries that have same name together
+burden.sum <- burden.sum %>% 
+  group_by(Country, Year) %>% summarise(sum_dalys = sum(sum_dalys, na.rm = TRUE))
+burden.sum$Year <- as.numeric(burden.sum$Year)
+
+## Add Country population size and Average burden of the sum of NTD from 1992 to 2019
+file957_pop <- left_join(file957_coord,world_pop.ar, by = c("Country","Year")) 
+file957_burden <- left_join(file957_pop,burden.sum, by = c("Country","Year")) 
+
+
+#### Calculate Per capita DALYs and select only relevant columns
+file957_complete <- file957_burden %>% 
+  rename(QVR=`QVR.#`, Funding = `Prorated.$.(no.RMS)`) %>% 
+  select(-c(Category.1, Category.2, Category.3, Institution.City, Institution, 
+            Institution.State, Awardee.Institution.Country)) %>% 
+  group_by(Country, Year) %>% 
+  mutate(per_capita_daly = sum_dalys/pop)
+    
+#### summarize data for map
+
+file957_map <- file957_complete %>% 
+  group_by(Country, latitude, longitude) %>% 
+  summarise(Total_Funding = sum(Funding, na.rm = TRUE), 
+            mean_pop = mean(pop, na.rm = TRUE), 
+            mean_dalys = mean(sum_dalys, na.rm = TRUE), 
+            mean_pc_daly = mean(per_capita_daly))
+
+```
+
+
+## Map of amount of Funding and distribution of Per capita DALYs
+
+
+
 
 
 
