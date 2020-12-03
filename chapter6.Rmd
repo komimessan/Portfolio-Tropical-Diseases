@@ -310,7 +310,7 @@ ggplot(data = world_data) +
   # scale_fill_viridis_c("Percent Per Capita DALYs",option = "B", 
   #                      trans = "sqrt", direction = -1, na.value = "grey80", 
   #                      alpha = 0.6) +
-  geom_point(data = file957_map, aes(x=Longitude, y=Latitude), color = "blue", size = 6, alpha = 0.25) +
+  geom_point(data = file957_map, aes(x=Longitude, y=Latitude), color = "blue", size = 8, alpha = 0.25) +
   geom_text(data = file957_map,aes(x=Longitude, y=Latitude,label = Label), size = 3.5,fontface="bold") +
   xlab(" ") + ylab(" ") +
    theme(panel.grid.major = element_line(color = "aliceblue", size = 0.00),
@@ -318,7 +318,7 @@ ggplot(data = world_data) +
          axis.text.x = element_blank(), axis.text.y = element_blank(), 
          axis.ticks = element_blank(), legend.position="bottom",
          legend.key.height = unit(0.6, "cm"), 
-         legend.key.size = unit(2.5, "cm")) + 
+         legend.key.size = unit(2.2, "cm")) + 
   theme(legend.justification = "right") + Nice.Label
 
 ```
