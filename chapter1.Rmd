@@ -1,0 +1,381 @@
+# Introduction
+
+Here the National Institute of Allergy and Infectious Diseases (NIAID) global funding from Year 1990 to 2017 are presented. The data consist only of the funding pertaining to projects on neglected tropical diseases worldwide. In addition to the neglected tropical diseases, we later added Influenza B, malaria, HIV/AIDS, Tuberculosis to illustrate differences between well-known illness and neglected tropical diseases. Through world map visualization, we display the amount of funding received by countries during the period of study. The GDP per capita of the countries funded are also illustrated. Two visualization are shown below. A startic map and an interactive map.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+# All package needed for these analysis
+library(openxlsx)
+library(leaflet)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(DT)
+library(gridExtra)
+library("ggmap")
+library(maptools)
+library(maps)
+#library(ggmap) # devtools::install_github("dkahle/ggmap")
+library("rnaturalearth") # to get world map
+library("rnaturalearthdata") # for the data
+library("stringr")
+library("sf")
+library("rgeos")
+library("ggspatial")
+library("pheatmap")
+#1. install_github("ropensci/rnaturalearthhires") # install this since new R does not support it
+# In order for package 2 to be install, the dependencies 3,4, and 5 also must be installed
+#2. install_github("paleolimbot/ggspatial") # install this since new R does not support it
+#3. install_github("paleolimbot/rosm") # install this since new R does not support it
+#4. install_github("cran/rgdal") # install this since new R does not support it
+#5. install_github("paleolimbot/prettymapr") # install this since new R does not support it
+
+# library("rnaturalearthhires")
+# library("ggspatial")
+# library("viridis")
+# 
+# library("htmlwidgets") 
+# library("Rcpp")
+# library("widgetframe") # the two pakages right above are dependencies for this
+# library("htmltools")
+# library("stringr")
+ library("scales")
+library("RColorBrewer")
+library("gplots")
+library("ggrepel")
+library("latex2exp")
+#library("devtools")
+library("facetscales")
+library("forecast")
+library("tseries")
+##install_github("zeehio/facetscales") ## be aware, this take a very long time to install.
+# library("varhandle")
+```
+
+
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+## Read in all data from the sir1492 folder
+
+#### Extract all files from sir1492 folder and combine them by columns
+
+## Change directory to sir1492 folder
+setwd("C:/Users/messanks/OneDrive/Projects/Rotations/OSPIDA_DARB_Nov2019/Neglected_Tropical_Diseases/Portfolio-Tropical-Diseases/sir1492")
+
+files.name <- list.files() # Obtain all files name
+
+## Combine all the file in the directory (this line below will take 63 seconds)
+## Remove all the top 5 rows and last 4 rows of each file
+ptm <- proc.time()
+rbind_90_19 <- do.call("rbind",lapply(files.name, 
+                                  FUN=function(files){
+                                    file <- read.xlsx(files,startRow = 6,colNames = TRUE)
+                                    n <- dim(file)[1]
+                                    new.file <- file[1:(n-4),]
+                                    return(new.file)
+                                    }
+                                  )
+                   )
+proc.time() - ptm
+
+## Change directory back to the previous parent directory
+setwd("..")
+
+
+#### Select relevant columns from the 1990-2019 data
+data_90_19 <- rbind_90_19 %>% 
+  select(Project.ID,Fiscal.Year, IMPACII.Appl.ID, Category.3, Institution.City,
+         Institution, Institution.State, Awardee.Institution.Country,
+         `Prorated.$.(no.RMS)`) 
+
+
+## Extract the organism NIAID code 
+numextract <- function(string){ 
+  str_extract(string, "\\-*\\d+\\.*\\d*")
+}
+
+numextract_90_19 <- numextract(data_90_19$Category.3)
+  
+## Extract the organism name
+charextract <- function(string,numextract){ 
+  noquote(trimws(str_split_fixed(string, numextract, n=6)[,2], which = "both"))
+}
+
+charextract_90_19 <- charextract(data_90_19$Category.3,numextract_90_19)
+
+## Add Code and organisms to the data
+data_90_19$Code <- numextract_90_19
+data_90_19$Organisms <- charextract_90_19 
+
+## Get the data for the organism code of neglected tropical diseases + 
+## Malaria + Tuberculosis + Inflenza B
+
+Org.Code <- read.xlsx("Organism_Code.xlsx", colNames = TRUE)
+
+## Now we extract the data with the relevant organism code 
+## We extract data from 1992:2019 but change the date to 1990 to 2017 for ease of merging data later
+
+data_90_17 <- data_90_19 %>% 
+  filter(data_90_19$Fiscal.Year %in% c(1992:2019)) %>%
+  filter(Code %in% Org.Code$Code) 
+
+data_90_17$Fiscal.Year <- factor(data_90_17$Fiscal.Year, 
+                                 levels = c(1992:2019), labels = c(1990:2017)) # name of the year shift back
+
+```
+
+
+
+## Funding and Number of Awards by Country from 1990 to 2017
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+## Read the map data
+data_map <- read.xlsx("map.data_90_17.xlsx", colNames = TRUE)
+Legend <- read.xlsx("Legend.xlsx",  colNames = TRUE)
+
+## group by Institution Latitude and Longitude
+
+data_map2 <- data_map %>% 
+  filter(Code != "8131", Code != "4161", Code != "4162", Code != "4163",
+         Code != "4168", Code != "4169") %>% # remove malaria and TB
+  group_by(Latitude, Longitude) %>%
+  mutate(Numb.Grant = n(), Total.Award = sum(Award)) %>% 
+  distinct(Latitude,Longitude, .keep_all = TRUE) 
+
+#### add a variable called "Legend" in the form Country-$Award
+data_map3 <- data_map2 %>% 
+  group_by(Country) %>% 
+   mutate(Award.By.Country = sum(Total.Award), 
+         Numb.Award = sum(Numb.Grant)) %>%
+  mutate(Legend = paste(paste(Country,Numb.Award, sep = " - "),  
+         Award.By.Country, sep = " - $")) %>% 
+  select(-c(Award, Numb.Grant))
+
+#### Create a variable to plot map only by country
+data_map4 <- data_map3 %>% 
+  select(Country,Latitude,Longitude,Award.By.Country,Numb.Award,Legend) %>% 
+   distinct(Country, .keep_all = TRUE) 
+## Manually change Latitude and Longitude of USA from HAWAI lat and long to Colorado's extracted from data_map3
+
+data_map4$Latitude[1] = 39.712929
+data_map4$Longitude[1] = -104.8193590
+
+# merge legend and map data
+data_map5 <- merge(Legend, data_map4, by = c("Country", "Numb.Award"))
+data_map5 <- data_map5[order(data_map5$Label),]
+
+```
+
+
+### A static map of Funding by countries
+
+```{r  echo= FALSE, warning=FALSE, message=FALSE, fig.height=6, fig.width= 10}
+
+
+## create template for plot labelling
+black.bold.text1 <- element_text(face = "bold", color = "black",size=16) # x and y axis
+black.bold.text2 <- element_text(face = "bold", color = "black",size=16) # title
+Nice.Label <-theme(axis.text.x = element_text(face="bold", color="black", size=16),
+         axis.text.y = element_text(face="bold", color="black", size=16),
+         title=black.bold.text2,axis.title = black.bold.text1,
+         legend.text = element_text(size=12), strip.text.x = element_text(face="bold",size=10))
+
+#### Make a map plot of the grant award
+
+## Pull country data
+world <- ne_countries(scale = "large", returnclass = "sf")
+
+# ## Create color 
+ mycolor <- c('black','brown', 'burlywood4', 'aquamarine4','chartreuse4',
+              'cornsilk4', 'darkblue','darkolivegreen1','darkorange',
+              'navy','deepskyblue4','gold4','olivedrab4','blue',
+              'chocolate1','chocolate4','lightsalmon4','tan1','mistyrose4',
+              'magenta','darkgreen','plum4','darkmagenta','orange4',
+              'mediumseagreen','maroon','hotpink4','lightslateblue')
+
+
+
+##############################
+
+ggplot(data = world) +
+    geom_sf() +
+  coord_sf(expand = FALSE, label_axes = " ") +
+  geom_point(data = data_map5, aes(x=Longitude, y=Latitude), color = "blue", size = 6, alpha = 0.25) +
+  geom_text(data = data_map5,aes(x=Longitude, y=Latitude,label = Label), size = 3.5,fontface="bold") +
+  #geom_label_repel(data = data_map4, aes(x=Longitude, y=Latitude,label = Country), 
+                   #box.padding = 0.4, point.padding = 0.7, label.size = 0.8) +
+   #scale_color_manual(name = "Countries - # of Awards - Amount",values = mycolor) +
+  #scale_size(range = c(1,27)) +
+  # xlab("Longitude") + ylab("Latitude") +
+  # scale_fill_brewer(name = "Countries - # of Awards - Amount",palette="Set1") +
+  xlab(" ") + ylab(" ") +
+   theme(panel.grid.major = element_line(color = "aliceblue", size = 0.00),
+         panel.background = element_rect(fill = "aliceblue"), axis.text.x = element_blank(),
+         axis.text.y = element_blank(), axis.ticks = element_blank()) + Nice.Label
+
+```
+
+
+### An interactive map of Funding by countries
+
+In what follow, we constructed the same map but make it interactive. By clicking on the markers, one can access the information regarding each location.
+
+```{r  echo= FALSE, warning=FALSE, message=FALSE, fig.height=6, fig.width= 10}
+## group by Institution Latitude and Longitude
+
+data_map_int <- data_map %>% 
+  filter(Code != "8131", Code != "4161", Code != "4162", Code != "4163",
+         Code != "4168", Code != "4169") %>% # remove malaria and TB
+  group_by(Latitude, Longitude) %>%
+  mutate(Numb.Grant = n(), Total.Award = sum(Award)) %>% 
+  distinct(Latitude,Longitude, .keep_all = TRUE) %>% 
+  mutate(mytext = 
+           str_c(
+            str_c("City:",City, sep = " "),
+            str_c("Country:",Country, sep = " "),
+            str_c("# of grants:",Numb.Grant, sep = " "),
+            str_c("Total award (in $):",Total.Award, sep = " "),
+            sep = "<br />"
+           ))
+
+
+# Code udapted from https://cfss.uchicago.edu/notes/leaflet/
+
+leaflet(data = data_map_int) %>%
+  addTiles() %>%
+  addMarkers(lng = ~Longitude, lat = ~Latitude, popup = ~mytext,
+             clusterOptions = markerClusterOptions())
+
+```
+
+Both map (i.e. static by country and interactive by city/US state) illustrated a cluster of funding in US and Europe. There were several funding in south America and Asia as well. Asutralia also saw a few funding throughout teh years studied here. In general U.S. has the most awards and the largest amount of funding.   
+
+## Funding on Neglected Tropical Disease from 1990 to 2017
+
+In this subsection, we catetgorized the diseases into different groups. For instance, all leishmeniasis were grouped under leishmeniasis, trypanosoma cruzi was under chagas, and everything that is not defined under any of the category illsutrated below are grouped under other for "other neglected tropical diseases". Given the fact that Malaria, Influenza B, TB, and HIV?AIDS are not considered neglected tropical diseases according to both CDC and WHO as display on the respective websites [CDC](https://www.cdc.gov/globalhealth/ntd/diseases/index.html) and [WHO](https://www.who.int/neglected_diseases/diseases/en/), we removed them from all analysis and reviewed the disease progression.
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+
+## Remove malaria, HIV, Influenza, TB, chikungunya and organisms from each year together
+
+data_awards <- data_90_17 %>% 
+  filter(Code != "8131", Code != "4161", Code != "4162", Code != "4163",
+         Code != "4168", Code != "4169", Code != "2120", Code != "2651",
+         Code != "4296", Code != "2610") %>% # remove malaria, HIV, Influenza, TB, chikungunya
+  select(Fiscal.Year, Code, Organisms, `Prorated.$.(no.RMS)`) %>% 
+  group_by(Code, Fiscal.Year) %>% 
+  mutate(Total.Award = sum(`Prorated.$.(no.RMS)`)) %>% 
+  select(-c(`Prorated.$.(no.RMS)`)) %>% 
+  distinct(Code, Fiscal.Year, .keep_all = TRUE) 
+
+
+## Create associated diseases category
+n1 <- dim(data_awards)[1]
+
+Associated.Disease <- rep(NA, n1) # Empty vector of size n1
+
+for (i in 1:n1) {
+if (data_awards$Code[i] == "4181" | data_awards$Code[i] == "4182" | 
+    data_awards$Code[i] == "4183" | data_awards$Code[i] == "4188" | 
+    data_awards$Code[i] == "4189") {
+  Associated.Disease[i] = "Leishmaniasis"
+} else if (data_awards$Code[i] == "4202") {
+  Associated.Disease[i] = "Chagas"     
+} else if (data_awards$Code[i] == "4311" | data_awards$Code[i] == "4313") {
+  Associated.Disease[i] = "Schistosomiasis"    
+} else if (data_awards$Code[i] == "2613") {
+  Associated.Disease[i] = "Dengue"    
+} else if (data_awards$Code[i] == "4512" | data_awards$Code[i] == "4513") {
+  Associated.Disease[i] = "Lymphatic Filariasis"
+} else if (data_awards$Code[i] == "4440") {
+  Associated.Disease[i] = "Echinococcus"    
+} else if (data_awards$Code[i] == "4540"){
+  Associated.Disease[i] = "Trichuriasis"
+} else if (data_awards$Code[i] == "4568"){
+  Associated.Disease[i] = "Hookworm"
+} else {
+  Associated.Disease[i] = "Other"    
+    }
+}
+
+
+## Group Leishmaniasis, Schistosoma, Chagas
+data_awards$Diseases <- factor(Associated.Disease,
+                               levels = c("Chagas","Leishmaniasis","Schistosomiasis",
+                                          "Lymphatic Filariasis", "Dengue", "Echinococcus",
+                                      "Hookworm","Trichuriasis","Other"))
+  
+## Group by year and disease
+
+data_awards2 <- data_awards %>% 
+  select(-c(Organisms)) %>% 
+group_by(Diseases, Fiscal.Year) %>% 
+  mutate(Total.Award = sum(Total.Award)) %>% 
+  distinct(Diseases, Fiscal.Year, .keep_all = TRUE) %>% 
+  rename(Year = "Fiscal.Year", Award ="Total.Award", Diseases = "Diseases")
+
+
+```
+
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 16}
+
+# create template for plot labelling
+black.bold.text1 <- element_text(face = "bold", color = "black",size=24) # x and y axis
+black.bold.text2 <- element_text(face = "bold", color = "black",size=24) # title
+Nice.Label2 <-theme(axis.text.x = element_text(face="bold", color="black", size=16),
+         axis.text.y = element_text(face="bold", color="black", size=16),
+         title=black.bold.text2,axis.title = black.bold.text1, legend.position = "right",legend.box = "vertical",
+         legend.text = element_text(size=24),strip.text.x = element_text(face="bold",size=24)) #18 or 24
+
+
+## Plotting the diseases categories
+
+## Separate
+ggplot(data_awards2, aes(x = factor(Year, levels = c(1990:2017), labels = c(1992:2019)),
+                         y=Award/1000000, group = 1)) +
+  geom_line(size = 1.3) +
+  geom_point(size = 3) +
+  facet_wrap(~Diseases, scales = "free_y", nrow = 3) +
+  labs(x = "", y = "Funding (in Millions of Dollars)", fill = "Diseases") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_y_continuous(labels = comma) +
+  scale_x_discrete(breaks = seq(1992,2019,2)) +
+  Nice.Label2
+
+```
+
+
+The plot of various funding shows an increasing pattern for most funding. While all the funding data are noisy, it can be observed that funding toward certain diseases were more constant (i.e. Echinococcus, Hookworm). Dengue and Chagas were some of the fundings that illustrated the increasing pattern the most.
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+## Create a new funding data but deflated all value to 1990
+Inflat_rate <- read.xlsx("Inflation_Adjustment.xlsx", colNames = TRUE, sheet = "BRDPI")
+
+# remove year 1989,90,91 and keep only year and rate
+Inflat_rate <- Inflat_rate[-(1:3),c("Year","Rate")] 
+
+## calculate the comulative of the rate
+Cum_Inflat_rate <- Inflat_rate %>% 
+  mutate(Cum_Rate = cumsum(Rate)) %>% 
+  select(-Rate, Year) %>% 
+  mutate(Year = 1990:2017)
+
+## Funding data and cumulative inflation rate
+awards_inflation <- merge(Cum_Inflat_rate, data_awards2, by = "Year")
+
+### Create the inflation adjusted to 1992 award data
+data_awards2 <- awards_inflation %>% 
+  group_by(Year, Diseases) %>% 
+  mutate(Award_defl = Award - (Award*Cum_Rate)/1)
+
+```
+

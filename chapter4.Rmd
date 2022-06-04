@@ -1,0 +1,1310 @@
+# Statistical analysis of the time series data
+
+To model the trend of the global disease burdens and predict future burdens, we conduct time series modeling utlilizing forecasting tools. Here, we combined the Auto-regressive and the Moving Average model for our analysis. we used the so called ARIMA model (Auto-Regressive Integrated Moving Average). See [Forecasting: Principles and Practice](https://otexts.com/fpp2/arima.html) for review on the ARIMA analysis. First, a cross validation is performed to access the validity of the model constructed and we then predict future burdens and funding.
+
+## Univariate time series analysis using ARIMA Model
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+# Create a function to extract the data from each burden of disease and convert it to ts object
+ts_data <- function(Data, BurdenID,StartDate,EndDate){
+  # Data is the large disease burden data
+  # BurdenID is the disease BurdenID in quotation
+  
+  sub.data <- subset(Data, Burden_id == BurdenID)
+  sub.data2 <- sub.data[,-c(1,2,3)] # remove irrelant column except year
+  sub.data_long <- spread(sub.data2,Diseases,Value)
+  sub.data_long2 <- sub.data_long[,-c(1)] # Now remove the column year
+  
+  data_ts <- ts(sub.data_long2, start = StartDate, end = EndDate)
+  return(data_ts)
+}
+
+#### Convert data from 1990 to 2012 to ts object
+
+## DALYs
+DALYs_ts <- ts_data(Burden2,"2",1990,2010)
+
+## YLLs (Years of Life Lost)
+YLLs_ts <- ts_data(Burden2,"4",1990,2010)
+
+## YLDs (Years Lived with Disability)
+YLDs_ts <- ts_data(Burden2,"3",1990,2010)
+
+## Deaths
+Deaths_ts <- ts_data(Burden2,"1",1990,2010)
+
+## Incidence
+Incidence_ts <- ts_data(Burden2,"6",1990,2010)
+
+## Prevalence
+Prevalence_ts <- ts_data(Burden2,"5",1990,2010)
+
+## Funding
+Funding <- data_awards2 %>% select(-c(Code, Award, Cum_Rate))
+Funding_ts <- Funding %>% 
+  spread(Diseases,Award_defl) %>% 
+  arrange(Year) %>% 
+  filter(Year %in% c(1990:2010)) %>% 
+  ts(., start = 1990, end = 2017)
+Funding_ts <- Funding_ts[,-1]  ## remove the column Year
+
+
+#### Convert data from 1990 to 2017 to ts object
+
+## DALYs
+DALYs_ts2 <- ts_data(Burden2,"2",1990,2017)
+
+## YLLs (Years of Life Lost)
+YLLs_ts2 <- ts_data(Burden2,"4",1990,2017)
+
+## YLDs (Years Lived with Disability)
+YLDs_ts2 <- ts_data(Burden2,"3",1990,2017)
+
+## Deaths
+Deaths_ts2 <- ts_data(Burden2,"1",1990,2017)
+
+## Incidence
+Incidence_ts2 <- ts_data(Burden2,"6",1990,2017)
+
+## Prevalence
+Prevalence_ts2 <- ts_data(Burden2,"5",1990,2017)
+
+###### Funding
+
+Funding_ts2 <- Funding %>% 
+  spread(Diseases,Award_defl) %>% 
+  arrange(Year) %>% 
+  ts(., start = 1990, end = 2017)
+Funding_ts2 <- Funding_ts2[,-1]  ## remove the column Year
+
+```
+
+
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+
+## Create a Function to find the best model parameters using auto.arima
+
+Best_model_func <- function(TSData){
+  # TSData is a dataframe with each column being a ts object
+  
+  n <- dim(TSData)[2] # obtain the number of diseases in the dataframe
+  param_table <- matrix(NA, ncol = 3, nrow = n) # create an empty matrix for the parameter
+  row.names(param_table) <- colnames(TSData) # the row name of the parameter table
+  
+  for (i in 1:n){
+    model <- auto.arima(TSData[,i],max.p = 15, max.q = 15, max.d = 8,
+                        max.Q = 8, max.P = 8, seasonal = TRUE, stepwise = TRUE,
+                        approximation = FALSE)
+    param_table[i,] <- arimaorder(model)
+  }
+  
+  colnames(param_table) <- c("p","d","q")
+  return(param_table)
+  
+}
+
+#### calculate the best parameter for each diseases and based on the burden 1990-2012
+
+## DALYs
+DALYs_param <- Best_model_func(DALYs_ts)
+
+## YLLs (Years of Life Lost)
+YLLs_param <- Best_model_func(YLLs_ts)
+
+## YLDs (Years Lived with Disability)
+YLDs_param <- Best_model_func(YLDs_ts)
+
+## Deaths
+Deaths_param <- Best_model_func(Deaths_ts)
+
+## Incidence
+Incidence_param <- Best_model_func(Incidence_ts)
+
+## Prevalence
+Prevalence_param <- Best_model_func(Prevalence_ts)
+
+## Funding
+Funding_param <- Best_model_func(Funding_ts)
+
+#### calculate the best parameter for each diseases and based on the burden 1990-2017
+
+## DALYs
+DALYs_param2 <- Best_model_func(DALYs_ts2)
+
+## YLLs (Years of Life Lost)
+YLLs_param2 <- Best_model_func(YLLs_ts2)
+
+## YLDs (Years Lived with Disability)
+YLDs_param2 <- Best_model_func(YLDs_ts2)
+
+## Deaths
+Deaths_param2 <- Best_model_func(Deaths_ts2)
+
+## Incidence
+Incidence_param2 <- Best_model_func(Incidence_ts2)
+
+## Prevalence
+Prevalence_param2 <- Best_model_func(Prevalence_ts2)
+
+## Funding
+Funding_param2 <- Best_model_func(Funding_ts2)
+
+
+```
+
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+###### Model fitting using the arima model
+
+############################################ Data of 1990 to 2012
+#### DALYs
+DALYs_Chagas_Fit <- arima(DALYs_ts[,1],order = DALYs_param[1,], method = "ML")
+DALYs_Leish_Fit <- arima(DALYs_ts[,2],order = DALYs_param[2,], method = "ML")
+DALYs_Schis_Fit <- arima(DALYs_ts[,3],order = DALYs_param[3,], method = "ML")
+DALYs_Lymp_Fit <- arima(DALYs_ts[,4],order = DALYs_param[4,], method = "ML")
+DALYs_Dengue_Fit <- arima(DALYs_ts[,5],order = DALYs_param[5,], method = "ML")
+DALYs_Echin_Fit <- arima(DALYs_ts[,6],order = DALYs_param[6,], method = "ML")
+DALYs_Hook_Fit <- arima(DALYs_ts[,7],order = DALYs_param[7,], method = "ML")
+DALYs_Trich_Fit <- arima(DALYs_ts[,8],order = DALYs_param[8,], method = "ML")
+DALYs_Other_Fit <- arima(DALYs_ts[,9],order = DALYs_param[9,], method = "ML")
+
+
+#### YLLs
+YLLs_Chagas_Fit <- arima(YLLs_ts[,1],order = YLLs_param[1,], method = "ML")
+YLLs_Leish_Fit <- arima(YLLs_ts[,2],order = YLLs_param[2,], method = "ML")
+YLLs_Schis_Fit <- arima(YLLs_ts[,3],order = YLLs_param[3,], method = "ML")
+#YLLs_Lymp_Fit <- arima(YLLs_ts[,4],order = YLLs_param[4,], method = "ML")
+YLLs_Dengue_Fit <- arima(YLLs_ts[,4],order = YLLs_param[5,], method = "ML")
+YLLs_Echin_Fit <- arima(YLLs_ts[,5],order = YLLs_param[6,], method = "ML")
+# YLLs_Hook_Fit <- arima(YLLs_ts[,7],order = YLLs_param[7,], method = "ML")
+# YLLs_Trich_Fit <- arima(YLLs_ts[,8],order = YLLs_param[8,], method = "ML")
+YLLs_Other_Fit <- arima(YLLs_ts[,6],order = YLLs_param[6,], method = "ML")
+
+
+#### YLDs
+YLDs_Chagas_Fit <- arima(YLDs_ts[,1],order = YLDs_param[1,], method = "ML")
+YLDs_Leish_Fit <- arima(YLDs_ts[,2],order = YLDs_param[2,], method = "ML")
+YLDs_Schis_Fit <- arima(YLDs_ts[,3],order = YLDs_param[3,], method = "ML")
+YLDs_Lymp_Fit <- arima(YLDs_ts[,4],order = YLDs_param[4,], method = "ML")
+YLDs_Dengue_Fit <- arima(YLDs_ts[,5],order = YLDs_param[5,], method = "ML")
+YLDs_Echin_Fit <- arima(YLDs_ts[,6],order = YLDs_param[6,], method = "ML")
+YLDs_Hook_Fit <- arima(YLDs_ts[,7],order = YLDs_param[7,], method = "ML")
+YLDs_Trich_Fit <- arima(YLDs_ts[,8],order = YLDs_param[8,], method = "ML")
+YLDs_Other_Fit <- arima(YLDs_ts[,9],order = YLDs_param[9,], method = "ML")
+
+
+#### Deaths
+Deaths_Chagas_Fit <- arima(Deaths_ts[,1],order = Deaths_param[1,], method = "ML")
+Deaths_Leish_Fit <- arima(Deaths_ts[,2],order = Deaths_param[2,], method = "ML")
+Deaths_Schis_Fit <- arima(Deaths_ts[,3],order = Deaths_param[3,], method = "ML")
+# Deaths_Lymp_Fit <- arima(Deaths_ts[,4],order = Deaths_param[4,], method = "ML")
+Deaths_Dengue_Fit <- arima(Deaths_ts[,4],order = Deaths_param[4,], method = "ML")
+Deaths_Echin_Fit <- arima(Deaths_ts[,5],order = Deaths_param[5,], method = "ML")
+# Deaths_Hook_Fit <- arima(Deaths_ts[,7],order = Deaths_param[7,], method = "ML")
+# Deaths_Trich_Fit <- arima(Deaths_ts[,8],order = Deaths_param[8,], method = "ML")
+Deaths_Other_Fit <- arima(Deaths_ts[,6],order = Deaths_param[6,], method = "ML")
+
+
+#### Incidence
+Incidence_Chagas_Fit <- arima(Incidence_ts[,1],order = Incidence_param[1,], method = "ML")
+Incidence_Leish_Fit <- arima(Incidence_ts[,2],order = Incidence_param[2,], method = "ML")
+# Incidence_Schis_Fit <- arima(Incidence_ts[,3],order = Incidence_param[3,], method = "ML")
+# Incidence_Lymp_Fit <- arima(Incidence_ts[,4],order = Incidence_param[4,], method = "ML")
+Incidence_Dengue_Fit <- arima(Incidence_ts[,5],order = Incidence_param[5,], method = "ML")
+Incidence_Echin_Fit <- arima(Incidence_ts[,6],order = Incidence_param[6,], method = "ML")
+# Incidence_Hook_Fit <- arima(Incidence_ts[,7],order = Incidence_param[7,], method = "ML")
+# Incidence_Trich_Fit <- arima(Incidence_ts[,8],order = Incidence_param[8,], method = "ML")
+Incidence_Other_Fit <- arima(Incidence_ts[,9],order = Incidence_param[9,], method = "ML")
+
+
+#### Prevalence
+Prevalence_Chagas_Fit <- arima(Prevalence_ts[,1],order = Prevalence_param[1,], method = "ML")
+Prevalence_Leish_Fit <- arima(Prevalence_ts[,2],order = Prevalence_param[2,], method = "ML")
+Prevalence_Schis_Fit <- arima(Prevalence_ts[,3],order = Prevalence_param[3,], method = "ML")
+Prevalence_Lymp_Fit <- arima(Prevalence_ts[,4],order = Prevalence_param[4,], method = "ML")
+Prevalence_Dengue_Fit <- arima(Prevalence_ts[,5],order = Prevalence_param[5,], method = "ML")
+Prevalence_Echin_Fit <- arima(Prevalence_ts[,6],order = Prevalence_param[6,], method = "ML")
+Prevalence_Hook_Fit <- arima(Prevalence_ts[,7],order = Prevalence_param[7,], method = "ML")
+Prevalence_Trich_Fit <- arima(Prevalence_ts[,8],order = Prevalence_param[8,], method = "ML")
+Prevalence_Other_Fit <- arima(Prevalence_ts[,9],order = Prevalence_param[9,], method = "ML")
+
+#### Funding
+Funding_Chagas_Fit <- arima(Funding_ts[,1],order = Funding_param[1,], method = "ML")
+Funding_Leish_Fit <- arima(Funding_ts[,2],order = Funding_param[2,], method = "ML")
+Funding_Schis_Fit <- arima(Funding_ts[,3],order = Funding_param[3,], method = "ML")
+Funding_Lymp_Fit <- arima(Funding_ts[,4],order = Funding_param[4,], method = "ML")
+Funding_Dengue_Fit <- arima(Funding_ts[,5],order = Funding_param[5,], method = "ML")
+Funding_Echin_Fit <- arima(Funding_ts[,6],order = Funding_param[6,], method = "ML")
+Funding_Hook_Fit <- arima(Funding_ts[,7],order = Funding_param[7,], method = "ML")
+Funding_Trich_Fit <- arima(Funding_ts[,8],order = Funding_param[8,], method = "ML")
+Funding_Other_Fit <- arima(Funding_ts[,9],order = Funding_param[9,], method = "ML")
+
+
+
+############################################ Data of 1990 to 2017
+#### DALYs
+DALYs_Chagas_Fit2 <- arima(DALYs_ts2[,1],order = DALYs_param2[1,], method = "ML")
+DALYs_Leish_Fit2 <- arima(DALYs_ts2[,2],order = DALYs_param2[2,], method = "ML")
+DALYs_Schis_Fit2 <- arima(DALYs_ts2[,3],order = DALYs_param2[3,], method = "ML")
+DALYs_Lymp_Fit2 <- arima(DALYs_ts2[,4],order = DALYs_param2[4,], method = "ML")
+DALYs_Dengue_Fit2 <- arima(DALYs_ts2[,5],order = DALYs_param2[5,], method = "ML")
+DALYs_Echin_Fit2 <- arima(DALYs_ts2[,6],order = DALYs_param2[6,], method = "ML")
+DALYs_Hook_Fit2 <- arima(DALYs_ts2[,7],order = DALYs_param2[7,], method = "ML")
+DALYs_Trich_Fit2 <- arima(DALYs_ts2[,8],order = DALYs_param2[8,], method = "ML")
+DALYs_Other_Fit2 <- arima(DALYs_ts2[,9],order = DALYs_param2[9,], method = "ML")
+
+
+#### YLLs
+YLLs_Chagas_Fit2 <- arima(YLLs_ts2[,1],order = YLLs_param2[1,], method = "ML")
+YLLs_Leish_Fit2 <- arima(YLLs_ts2[,2],order = YLLs_param2[2,], method = "ML")
+YLLs_Schis_Fit2 <- arima(YLLs_ts2[,3],order = YLLs_param2[3,], method = "ML")
+#YLLs_Lymp_Fit2 <- arima(YLLs_ts2[,4],order = YLLs_param2[4,], method = "ML")
+YLLs_Dengue_Fit2 <- arima(YLLs_ts2[,4],order = YLLs_param2[5,], method = "ML")
+YLLs_Echin_Fit2 <- arima(YLLs_ts2[,5],order = YLLs_param2[6,], method = "ML")
+# YLLs_Hook_Fit2 <- arima(YLLs_ts2[,7],order = YLLs_param2[7,], method = "ML")
+# YLLs_Trich_Fit2 <- arima(YLLs_ts2[,8],order = YLLs_param2[8,], method = "ML")
+YLLs_Other_Fit2 <- arima(YLLs_ts2[,6],order = YLLs_param2[6,], method = "ML")
+
+
+#### YLDs
+YLDs_Chagas_Fit2 <- arima(YLDs_ts2[,1],order = YLDs_param2[1,], method = "ML")
+YLDs_Leish_Fit2 <- arima(YLDs_ts2[,2],order = YLDs_param2[2,], method = "ML")
+YLDs_Schis_Fit2 <- arima(YLDs_ts2[,3],order = YLDs_param2[3,], method = "ML")
+YLDs_Lymp_Fit2 <- arima(YLDs_ts2[,4],order = YLDs_param2[4,], method = "ML")
+YLDs_Dengue_Fit2 <- arima(YLDs_ts2[,5],order = YLDs_param2[5,], method = "ML")
+YLDs_Echin_Fit2 <- arima(YLDs_ts2[,6],order = YLDs_param2[6,], method = "ML")
+YLDs_Hook_Fit2 <- arima(YLDs_ts2[,7],order = YLDs_param2[7,], method = "ML")
+YLDs_Trich_Fit2 <- arima(YLDs_ts2[,8],order = YLDs_param2[8,], method = "ML")
+YLDs_Other_Fit2 <- arima(YLDs_ts2[,9],order = YLDs_param2[9,], method = "ML")
+
+
+#### Deaths
+Deaths_Chagas_Fit2 <- arima(Deaths_ts2[,1],order = Deaths_param2[1,], method = "ML")
+Deaths_Leish_Fit2 <- arima(Deaths_ts2[,2],order = Deaths_param2[2,], method = "ML")
+Deaths_Schis_Fit2 <- arima(Deaths_ts2[,3],order = Deaths_param2[3,], method = "ML")
+# Deaths_Lymp_Fit2 <- arima(Deaths_ts2[,4],order = Deaths_param2[4,], method = "ML")
+Deaths_Dengue_Fit2 <- arima(Deaths_ts2[,4],order = Deaths_param2[4,], method = "ML")
+Deaths_Echin_Fit2 <- arima(Deaths_ts2[,5],order = Deaths_param2[5,], method = "ML")
+# Deaths_Hook_Fit2 <- arima(Deaths_ts2[,7],order = Deaths_param2[7,], method = "ML")
+# Deaths_Trich_Fit2 <- arima(Deaths_ts2[,8],order = Deaths_param2[8,], method = "ML")
+Deaths_Other_Fit2 <- arima(Deaths_ts2[,6],order = Deaths_param2[6,], method = "ML")
+
+
+#### Incidence
+Incidence_Chagas_Fit2 <- arima(Incidence_ts2[,1],order = Incidence_param2[1,], method = "ML")
+Incidence_Leish_Fit2 <- arima(Incidence_ts2[,2],order = Incidence_param2[2,], method = "ML")
+# Incidence_Schis_Fit2 <- arima(Incidence_ts2[,3],order = Incidence_param2[3,], method = "ML")
+# Incidence_Lymp_Fit2 <- arima(Incidence_ts2[,4],order = Incidence_param2[4,], method = "ML")
+Incidence_Dengue_Fit2 <- arima(Incidence_ts2[,5],order = Incidence_param2[5,], method = "ML")
+Incidence_Echin_Fit2 <- arima(Incidence_ts2[,6],order = Incidence_param2[6,], method = "ML")
+# Incidence_Hook_Fit2 <- arima(Incidence_ts2[,7],order = Incidence_param2[7,], method = "ML")
+# Incidence_Trich_Fit2 <- arima(Incidence_ts2[,8],order = Incidence_param2[8,], method = "ML")
+Incidence_Other_Fit2 <- arima(Incidence_ts2[,9],order = Incidence_param2[9,], method = "ML")
+
+
+#### Prevalence
+Prevalence_Chagas_Fit2 <- arima(Prevalence_ts2[,1],order = Prevalence_param2[1,], method = "ML")
+Prevalence_Leish_Fit2 <- arima(Prevalence_ts2[,2],order = Prevalence_param2[2,], method = "ML")
+Prevalence_Schis_Fit2 <- arima(Prevalence_ts2[,3],order = Prevalence_param2[3,], method = "ML")
+Prevalence_Lymp_Fit2 <- arima(Prevalence_ts2[,4],order = Prevalence_param2[4,], method = "ML")
+Prevalence_Dengue_Fit2 <- arima(Prevalence_ts2[,5],order = Prevalence_param2[5,], method = "ML")
+Prevalence_Echin_Fit2 <- arima(Prevalence_ts2[,6],order = Prevalence_param2[6,], method = "ML")
+Prevalence_Hook_Fit2 <- arima(Prevalence_ts2[,7],order = Prevalence_param2[7,], method = "ML")
+Prevalence_Trich_Fit2 <- arima(Prevalence_ts2[,8],order = Prevalence_param2[8,], method = "ML")
+Prevalence_Other_Fit2 <- arima(Prevalence_ts2[,9],order = Prevalence_param2[9,], method = "ML")
+
+
+#### Funding
+Funding_Chagas_Fit2 <- arima(Funding_ts2[,1],order = Funding_param2[1,], method = "ML")
+Funding_Leish_Fit2 <- arima(Funding_ts2[,2],order = Funding_param2[2,], method = "ML")
+Funding_Schis_Fit2 <- arima(Funding_ts2[,3],order = Funding_param2[3,], method = "ML")
+Funding_Lymp_Fit2 <- arima(Funding_ts2[,4],order = Funding_param2[4,], method = "ML")
+Funding_Dengue_Fit2 <- arima(Funding_ts2[,5],order = Funding_param2[5,], method = "ML")
+Funding_Echin_Fit2 <- arima(Funding_ts2[,6],order = Funding_param2[6,], method = "ML")
+Funding_Hook_Fit2 <- arima(Funding_ts2[,7],order = Funding_param2[7,], method = "ML")
+Funding_Trich_Fit2 <- arima(Funding_ts2[,8],order = Funding_param2[8,], method = "ML")
+Funding_Other_Fit2 <- arima(Funding_ts2[,9],order = Funding_param2[9,], method = "ML")
+
+```
+
+
+
+## Cross Validation
+
+To perform the cross validation, data from 1990 to 2010 were used to predict data from 2011 to 2017. The predicted results from 2011 to 2017 were compared to the actual value.
+
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+
+#### Cross validation
+
+########################## Forecasting 2011 to 2017 from the first model to show model accuracy
+l_pred <- 2017 - 2010 # number of years to predict
+#### DALYs
+DALYs_Chagas_Pred <- forecast(DALYs_Chagas_Fit,h = l_pred, level = c(99))
+DALYs_Leish_Pred <- forecast(DALYs_Leish_Fit, h = l_pred, level = c(99))
+DALYs_Schis_Pred <- forecast(DALYs_Schis_Fit, h = l_pred, level = c(99))
+DALYs_Lymp_Pred <- forecast(DALYs_Lymp_Fit, h = l_pred, level = c(99))
+DALYs_Dengue_Pred <- forecast(DALYs_Dengue_Fit, h = l_pred, level = c(99))
+DALYs_Echin_Pred <- forecast(DALYs_Echin_Fit, h = l_pred, level = c(99))
+DALYs_Hook_Pred <- forecast(DALYs_Hook_Fit, h = l_pred, level = c(99))
+DALYs_Trich_Pred <- forecast(DALYs_Trich_Fit, h = l_pred, level = c(99))
+DALYs_Other_Pred <- forecast(DALYs_Other_Fit, h = l_pred, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+DALYs_pred <- rbind(
+  data.frame(Year = 2011:2017,Predicted = as.numeric(DALYs_Chagas_Pred$mean),
+             Lower = as.numeric(DALYs_Chagas_Pred$lower),Upper = as.numeric(DALYs_Chagas_Pred$upper),
+             Diseases = rep("Chagas",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(DALYs_Leish_Pred$mean),
+             Lower = as.numeric(DALYs_Leish_Pred$lower),Upper = as.numeric(DALYs_Leish_Pred$upper),
+             Diseases = rep("Leishmaniasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(DALYs_Schis_Pred$mean),
+             Lower = as.numeric(DALYs_Schis_Pred$lower),Upper = as.numeric(DALYs_Schis_Pred$upper),
+             Diseases = rep("Schistosomiasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(DALYs_Lymp_Pred$mean),
+             Lower = as.numeric(DALYs_Lymp_Pred$lower),Upper = as.numeric(DALYs_Lymp_Pred$upper),
+             Diseases = rep("Lymphatic Filariasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(DALYs_Dengue_Pred$mean),
+             Lower = as.numeric(DALYs_Dengue_Pred$lower),Upper = as.numeric(DALYs_Dengue_Pred$upper),
+             Diseases = rep("Dengue",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(DALYs_Echin_Pred$mean),
+             Lower = as.numeric(DALYs_Echin_Pred$lower),Upper = as.numeric(DALYs_Echin_Pred$upper),
+             Diseases = rep("Echinococcus",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(DALYs_Hook_Pred$mean),
+             Lower = as.numeric(DALYs_Hook_Pred$lower),Upper = as.numeric(DALYs_Hook_Pred$upper),
+             Diseases = rep("Hookworm",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(DALYs_Trich_Pred$mean),
+             Lower = as.numeric(DALYs_Trich_Pred$lower),Upper = as.numeric(DALYs_Trich_Pred$upper),
+             Diseases = rep("Trichuriasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(DALYs_Other_Pred$mean),
+             Lower = as.numeric(DALYs_Other_Pred$lower),Upper = as.numeric(DALYs_Other_Pred$upper),
+             Diseases = rep("Other",l_pred))
+)
+  
+
+
+#### YLLs
+YLLs_Chagas_Pred <- forecast(YLLs_Chagas_Fit,h = l_pred, level = c(99))
+YLLs_Leish_Pred <- forecast(YLLs_Leish_Fit, h = l_pred, level = c(99))
+YLLs_Schis_Pred <- forecast(YLLs_Schis_Fit, h = l_pred, level = c(99))
+# YLLs_Lymp_Pred <- forecast(YLLs_Lymp_Fit, h = 5, level = c(99))
+YLLs_Dengue_Pred <- forecast(YLLs_Dengue_Fit, h = l_pred, level = c(99))
+YLLs_Echin_Pred <- forecast(YLLs_Echin_Fit, h = l_pred, level = c(99))
+# YLLs_Hook_Pred <- forecast(YLLs_Hook_Fit, h = 5, level = c(99))
+# YLLs_Trich_Pred <- forecast(YLLs_Trich_Fit, h = 5, level = c(99))
+YLLs_Other_Pred <- forecast(YLLs_Other_Fit, h = l_pred, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+YLLs_pred <- rbind(
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLLs_Chagas_Pred$mean),
+             Lower = as.numeric(YLLs_Chagas_Pred$lower),Upper = as.numeric(YLLs_Chagas_Pred$upper),
+             Diseases = rep("Chagas",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLLs_Leish_Pred$mean),
+             Lower = as.numeric(YLLs_Leish_Pred$lower),Upper = as.numeric(YLLs_Leish_Pred$upper),
+             Diseases = rep("Leishmaniasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLLs_Schis_Pred$mean),
+             Lower = as.numeric(YLLs_Schis_Pred$lower),Upper = as.numeric(YLLs_Schis_Pred$upper),
+             Diseases = rep("Schistosomiasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLLs_Dengue_Pred$mean),
+             Lower = as.numeric(YLLs_Dengue_Pred$lower),Upper = as.numeric(YLLs_Dengue_Pred$upper),
+             Diseases = rep("Dengue",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLLs_Echin_Pred$mean),
+             Lower = as.numeric(YLLs_Echin_Pred$lower),Upper = as.numeric(YLLs_Echin_Pred$upper),
+             Diseases = rep("Echinococcus",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLLs_Other_Pred$mean),
+             Lower = as.numeric(YLLs_Other_Pred$lower),Upper = as.numeric(YLLs_Other_Pred$upper),
+             Diseases = rep("Other",l_pred))
+)
+
+
+
+#### YLDs
+YLDs_Chagas_Pred <- forecast(YLDs_Chagas_Fit,h = l_pred, level = c(99))
+YLDs_Leish_Pred <- forecast(YLDs_Leish_Fit, h = l_pred, level = c(99))
+YLDs_Schis_Pred <- forecast(YLDs_Schis_Fit, h = l_pred, level = c(99))
+YLDs_Lymp_Pred <- forecast(YLDs_Lymp_Fit, h = l_pred, level = c(99))
+YLDs_Dengue_Pred <- forecast(YLDs_Dengue_Fit, h = l_pred, level = c(99))
+YLDs_Echin_Pred <- forecast(YLDs_Echin_Fit, h = l_pred, level = c(99))
+YLDs_Hook_Pred <- forecast(YLDs_Hook_Fit, h = l_pred, level = c(99))
+YLDs_Trich_Pred <- forecast(YLDs_Trich_Fit, h = l_pred, level = c(99))
+YLDs_Other_Pred <- forecast(YLDs_Other_Fit, h = l_pred, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+YLDs_pred <- rbind(
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLDs_Chagas_Pred$mean),
+             Lower = as.numeric(YLDs_Chagas_Pred$lower),Upper = as.numeric(YLDs_Chagas_Pred$upper),
+             Diseases = rep("Chagas",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLDs_Leish_Pred$mean),
+             Lower = as.numeric(YLDs_Leish_Pred$lower),Upper = as.numeric(YLDs_Leish_Pred$upper),
+             Diseases = rep("Leishmaniasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLDs_Schis_Pred$mean),
+             Lower = as.numeric(YLDs_Schis_Pred$lower),Upper = as.numeric(YLDs_Schis_Pred$upper),
+             Diseases = rep("Schistosomiasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLDs_Lymp_Pred$mean),
+             Lower = as.numeric(YLDs_Lymp_Pred$lower),Upper = as.numeric(YLDs_Lymp_Pred$upper),
+             Diseases = rep("Lymphatic Filariasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLDs_Dengue_Pred$mean),
+             Lower = as.numeric(YLDs_Dengue_Pred$lower),Upper = as.numeric(YLDs_Dengue_Pred$upper),
+             Diseases = rep("Dengue",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLDs_Echin_Pred$mean),
+             Lower = as.numeric(YLDs_Echin_Pred$lower),Upper = as.numeric(YLDs_Echin_Pred$upper),
+             Diseases = rep("Echinococcus",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLDs_Hook_Pred$mean),
+             Lower = as.numeric(YLDs_Hook_Pred$lower),Upper = as.numeric(YLDs_Hook_Pred$upper),
+             Diseases = rep("Hookworm",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLDs_Trich_Pred$mean),
+             Lower = as.numeric(YLDs_Trich_Pred$lower),Upper = as.numeric(YLDs_Trich_Pred$upper),
+             Diseases = rep("Trichuriasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(YLDs_Other_Pred$mean),
+             Lower = as.numeric(YLDs_Other_Pred$lower),Upper = as.numeric(YLDs_Other_Pred$upper),
+             Diseases = rep("Other",l_pred))
+)
+
+
+#### Deaths
+Deaths_Chagas_Pred <- forecast(Deaths_Chagas_Fit,h = l_pred, level = c(99))
+Deaths_Leish_Pred <- forecast(Deaths_Leish_Fit, h = l_pred, level = c(99))
+Deaths_Schis_Pred <- forecast(Deaths_Schis_Fit, h = l_pred, level = c(99))
+# Deaths_Lymp_Pred <- forecast(Deaths_Lymp_Fit, h = 5, level = c(99))
+Deaths_Dengue_Pred <- forecast(Deaths_Dengue_Fit, h = l_pred, level = c(99))
+Deaths_Echin_Pred <- forecast(Deaths_Echin_Fit, h = l_pred, level = c(99))
+# Deaths_Hook_Pred <- forecast(Deaths_Hook_Fit, h = 5, level = c(99))
+# Deaths_Trich_Pred <- forecast(Deaths_Trich_Fit, h = 5, level = c(99))
+Deaths_Other_Pred <- forecast(Deaths_Other_Fit, h = l_pred, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+Deaths_pred <- rbind(
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Deaths_Chagas_Pred$mean),
+             Lower = as.numeric(Deaths_Chagas_Pred$lower),Upper = as.numeric(Deaths_Chagas_Pred$upper),
+             Diseases = rep("Chagas",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Deaths_Leish_Pred$mean),
+             Lower = as.numeric(Deaths_Leish_Pred$lower),Upper = as.numeric(Deaths_Leish_Pred$upper),
+             Diseases = rep("Leishmaniasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Deaths_Schis_Pred$mean),
+             Lower = as.numeric(Deaths_Schis_Pred$lower),Upper = as.numeric(Deaths_Schis_Pred$upper),
+             Diseases = rep("Schistosomiasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Deaths_Dengue_Pred$mean),
+             Lower = as.numeric(Deaths_Dengue_Pred$lower),Upper = as.numeric(Deaths_Dengue_Pred$upper),
+             Diseases = rep("Dengue",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Deaths_Echin_Pred$mean),
+             Lower = as.numeric(Deaths_Echin_Pred$lower),Upper = as.numeric(Deaths_Echin_Pred$upper),
+             Diseases = rep("Echinococcus",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Deaths_Other_Pred$mean),
+             Lower = as.numeric(Deaths_Other_Pred$lower),Upper = as.numeric(Deaths_Other_Pred$upper),
+             Diseases = rep("Other",l_pred))
+)
+
+
+
+#### Incidence
+Incidence_Chagas_Pred <- forecast(Incidence_Chagas_Fit,h = l_pred, level = c(99))
+Incidence_Leish_Pred <- forecast(Incidence_Leish_Fit, h = l_pred, level = c(99))
+# Incidence_Schis_Pred <- forecast(Incidence_Schis_Fit, h = 7, level = c(99))
+# Incidence_Lymp_Pred <- forecast(Incidence_Lymp_Fit, h = 5, level = c(99))
+Incidence_Dengue_Pred <- forecast(Incidence_Dengue_Fit, h = l_pred, level = c(99))
+Incidence_Echin_Pred <- forecast(Incidence_Echin_Fit, h = l_pred, level = c(99))
+# Incidence_Hook_Pred <- forecast(Incidence_Hook_Fit, h = 5, level = c(99))
+# Incidence_Trich_Pred <- forecast(Incidence_Trich_Fit, h = 5, level = c(99))
+Incidence_Other_Pred <- forecast(Incidence_Other_Fit, h = l_pred, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+Incidence_pred <- rbind(
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Incidence_Chagas_Pred$mean),
+             Lower = as.numeric(Incidence_Chagas_Pred$lower),Upper = as.numeric(Incidence_Chagas_Pred$upper),
+             Diseases = rep("Chagas",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Incidence_Leish_Pred$mean),
+             Lower = as.numeric(Incidence_Leish_Pred$lower),Upper = as.numeric(Incidence_Leish_Pred$upper),
+             Diseases = rep("Leishmaniasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Incidence_Dengue_Pred$mean),
+             Lower = as.numeric(Incidence_Dengue_Pred$lower),Upper = as.numeric(Incidence_Dengue_Pred$upper),
+             Diseases = rep("Dengue",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Incidence_Echin_Pred$mean),
+             Lower = as.numeric(Incidence_Echin_Pred$lower),Upper = as.numeric(Incidence_Echin_Pred$upper),
+             Diseases = rep("Echinococcus",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Incidence_Other_Pred$mean),
+             Lower = as.numeric(Incidence_Other_Pred$lower),Upper = as.numeric(Incidence_Other_Pred$upper),
+             Diseases = rep("Other",l_pred))
+)
+
+
+#### Prevalence
+Prevalence_Chagas_Pred <- forecast(Prevalence_Chagas_Fit,h = l_pred, level = c(99))
+Prevalence_Leish_Pred <- forecast(Prevalence_Leish_Fit, h = l_pred, level = c(99))
+Prevalence_Schis_Pred <- forecast(Prevalence_Schis_Fit, h = l_pred, level = c(99))
+Prevalence_Lymp_Pred <- forecast(Prevalence_Lymp_Fit, h = l_pred, level = c(99))
+Prevalence_Dengue_Pred <- forecast(Prevalence_Dengue_Fit, h = l_pred, level = c(99))
+Prevalence_Echin_Pred <- forecast(Prevalence_Echin_Fit, h = l_pred, level = c(99))
+Prevalence_Hook_Pred <- forecast(Prevalence_Hook_Fit, h = l_pred, level = c(99))
+Prevalence_Trich_Pred <- forecast(Prevalence_Trich_Fit, h = l_pred, level = c(99))
+Prevalence_Other_Pred <- forecast(Prevalence_Other_Fit, h = l_pred, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+Prevalence_pred <- rbind(
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Prevalence_Chagas_Pred$mean),
+             Lower = as.numeric(Prevalence_Chagas_Pred$lower),Upper = as.numeric(Prevalence_Chagas_Pred$upper),
+             Diseases = rep("Chagas",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Prevalence_Leish_Pred$mean),
+             Lower = as.numeric(Prevalence_Leish_Pred$lower),Upper = as.numeric(Prevalence_Leish_Pred$upper),
+             Diseases = rep("Leishmaniasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Prevalence_Schis_Pred$mean),
+             Lower = as.numeric(Prevalence_Schis_Pred$lower),Upper = as.numeric(Prevalence_Schis_Pred$upper),
+             Diseases = rep("Schistosomiasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Prevalence_Lymp_Pred$mean),
+             Lower = as.numeric(Prevalence_Lymp_Pred$lower),Upper = as.numeric(Prevalence_Lymp_Pred$upper),
+             Diseases = rep("Lymphatic Filariasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Prevalence_Dengue_Pred$mean),
+             Lower = as.numeric(Prevalence_Dengue_Pred$lower),Upper = as.numeric(Prevalence_Dengue_Pred$upper),
+             Diseases = rep("Dengue",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Prevalence_Echin_Pred$mean),
+             Lower = as.numeric(Prevalence_Echin_Pred$lower),Upper = as.numeric(Prevalence_Echin_Pred$upper),
+             Diseases = rep("Echinococcus",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Prevalence_Hook_Pred$mean),
+             Lower = as.numeric(Prevalence_Hook_Pred$lower),Upper = as.numeric(Prevalence_Hook_Pred$upper),
+             Diseases = rep("Hookworm",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Prevalence_Trich_Pred$mean),
+             Lower = as.numeric(Prevalence_Trich_Pred$lower),Upper = as.numeric(Prevalence_Trich_Pred$upper),
+             Diseases = rep("Trichuriasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Prevalence_Other_Pred$mean),
+             Lower = as.numeric(Prevalence_Other_Pred$lower),Upper = as.numeric(Prevalence_Other_Pred$upper),
+             Diseases = rep("Other",l_pred))
+)
+
+
+
+#### Funding
+Funding_Chagas_Pred <- forecast(Funding_Chagas_Fit,h = l_pred, level = c(99))
+Funding_Leish_Pred <- forecast(Funding_Leish_Fit, h = l_pred, level = c(99))
+Funding_Schis_Pred <- forecast(Funding_Schis_Fit, h = l_pred, level = c(99))
+Funding_Lymp_Pred <- forecast(Funding_Lymp_Fit, h = l_pred, level = c(99))
+Funding_Dengue_Pred <- forecast(Funding_Dengue_Fit, h = l_pred, level = c(99))
+Funding_Echin_Pred <- forecast(Funding_Echin_Fit, h = l_pred, level = c(99))
+Funding_Hook_Pred <- forecast(Funding_Hook_Fit, h = l_pred, level = c(99))
+Funding_Trich_Pred <- forecast(Funding_Trich_Fit, h = l_pred, level = c(99))
+Funding_Other_Pred <- forecast(Funding_Other_Fit, h = l_pred, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+Funding_pred <- rbind(
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Funding_Chagas_Pred$mean),
+             Lower = as.numeric(Funding_Chagas_Pred$lower),Upper = as.numeric(Funding_Chagas_Pred$upper),
+             Diseases = rep("Chagas",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Funding_Leish_Pred$mean),
+             Lower = as.numeric(Funding_Leish_Pred$lower),Upper = as.numeric(Funding_Leish_Pred$upper),
+             Diseases = rep("Leishmaniasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Funding_Schis_Pred$mean),
+             Lower = as.numeric(Funding_Schis_Pred$lower),Upper = as.numeric(Funding_Schis_Pred$upper),
+             Diseases = rep("Schistosomiasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Funding_Lymp_Pred$mean),
+             Lower = as.numeric(Funding_Lymp_Pred$lower),Upper = as.numeric(Funding_Lymp_Pred$upper),
+             Diseases = rep("Lymphatic Filariasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Funding_Dengue_Pred$mean),
+             Lower = as.numeric(Funding_Dengue_Pred$lower),Upper = as.numeric(Funding_Dengue_Pred$upper),
+             Diseases = rep("Dengue",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Funding_Echin_Pred$mean),
+             Lower = as.numeric(Funding_Echin_Pred$lower),Upper = as.numeric(Funding_Echin_Pred$upper),
+             Diseases = rep("Echinococcus",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Funding_Hook_Pred$mean),
+             Lower = as.numeric(Funding_Hook_Pred$lower),Upper = as.numeric(Funding_Hook_Pred$upper),
+             Diseases = rep("Hookworm",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Funding_Trich_Pred$mean),
+             Lower = as.numeric(Funding_Trich_Pred$lower),Upper = as.numeric(Funding_Trich_Pred$upper),
+             Diseases = rep("Trichuriasis",l_pred)),
+  data.frame(Year = 2011:2017,Predicted = as.numeric(Funding_Other_Pred$mean),
+             Lower = as.numeric(Funding_Other_Pred$lower),Upper = as.numeric(Funding_Other_Pred$upper),
+             Diseases = rep("Other",l_pred))
+)
+
+
+
+################### Construct a data.frame of all prediction and actual value
+
+## Create function to do the merging of the data
+merge_pred <- function(Data, BurdenID, PredictData){
+  # data takes the disease burden data
+  # BurdenID take the disease burden id in quotation
+  # PredictData is the data of the predicted value (mean, confidence intervals)
+  sub.data <- subset(Data, Burden_id == BurdenID)
+  result <- left_join(sub.data, PredictData, by = c("Year","Diseases"))
+  return(result) 
+}
+
+#DALYs
+merge_pred_DALYs <- merge_pred(Burden2,"2",DALYs_pred)
+
+#YLLs
+merge_pred_YLLs <- merge_pred(Burden2,"4",YLLs_pred)
+
+#YLDs
+merge_pred_YLDs <- merge_pred(Burden2,"3",YLDs_pred)
+
+#Deaths
+merge_pred_Deaths <- merge_pred(Burden2,"1",Deaths_pred)
+
+#Incidence
+merge_pred_Incidence <- merge_pred(Burden2,"6",Incidence_pred)
+
+#Prevalence
+merge_pred_Prevalence <- merge_pred(Burden2,"5",Prevalence_pred)
+
+## Funding
+#Funding_pred$Year <- as.factor(Funding_pred$Year) # Convert year to numeric
+merge_pred_Funding <- left_join(data_awards2, Funding_pred, by = c("Year","Diseases")) %>%
+  rename(Value = "Award_defl") %>% 
+  select(-Award)
+
+```
+
+
+### Disability-Adjusted Life Years (DALYs)
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+
+## Create a function to plot the Cross validation data with CI
+
+PredictionPlot.func <- function(MergePred_Burden, ylab, endYear){
+  # MergePred_Burden is the data of the predicted and original burden value from 1990 to 2017
+  # ylab is the y label in quotation
+  # endYear is the last year to plot
+  
+  ggplot(data = MergePred_Burden) +
+  geom_line(aes(x = factor(Year),y=Value/1000000,colour = "Actual Value", group = 1), size = 1.2) +
+  geom_point(aes(x = factor(Year), y=Value/1000000, colour = "Actual Value", 
+                 group = 1),size = 3) +
+  # geom_line(aes(x = factor(Year),y=Predicted/1000000,colour = "Predicted Value", group = 1),
+  #           size = 1.2) +
+  geom_point(aes(x = factor(Year),y=Predicted/1000000,colour = "Predicted Value with 99% CI", 
+                 group = 1),  size = 3) +
+  geom_smooth(aes(x = factor(Year), y = Predicted/1000000, ymin=Lower/1000000, ymax=Upper/1000000,
+                  group = 1, colour = "Predicted Value with 99% CI"),stat = "identity", show.legend = FALSE) +
+  facet_wrap(~Diseases, scales = "free_y", nrow = 3) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.01) ) +
+  scale_x_discrete(breaks = seq(1990,endYear,2)) +
+  scale_colour_manual(values = c("black", "blue")) +
+  labs(x = "", y = ylab, colour = NULL) +
+  Nice.Label2 + theme(legend.position ="bottom") 
+}
+
+
+#DALYs
+PredictionPlot.func(merge_pred_DALYs,"Disability-Adjusted Life Years (in Millions)", 2017)
+
+
+```
+
+Withe the exception of the Lymphatic Filariasis, cross-validation for all disease burdens seem to follow the actual data pattern. In addition, we note that all predicted value are in the confidence interval.
+
+
+### Years of Life Lost (YLLs)
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+
+#YLLs
+PredictionPlot.func(merge_pred_YLLs,"Years of Life Lost (in Millions)", 2017)
+
+```
+ 
+ Given that YLLs data was not available for all diseases, prediction wree conducted for only 6 diseases and the cross-validation was accurate. We however not that Echinococcus have a constant term meaning predicting into the future may lead to a large error.
+ 
+ 
+### Years Lived with Disability (YLDs)
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#YLDs
+PredictionPlot.func(merge_pred_YLDs,"Years Lived with Disability (in Millions)", 2017)
+```
+
+
+Cross-validation for YLDs shows similar trend as in DALYs. Howwver the value predicted for Schistosomiasis appear to be constant leading to the fact that the model may not be doing so well on this disease. 
+
+
+### Mortality
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#Deaths
+PredictionPlot.func(merge_pred_Deaths,"Number of Mortality (in Millions)", 2017)
+```
+
+The mortality cross-validation also has some missing diseases given the fact that some of the neglected diseases caused a lot of burden but are not generally deadly. we not that diseases such as Leishmaniasis and Chagas appear to show a constant prediction (i.e. p and q from the ARIMA model equal to 0).
+
+### Incidence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#Incidence
+PredictionPlot.func(merge_pred_Incidence,"Number of Incidence (in Millions)", 2017)
+```
+
+Data were not available for the incidence of Hookworm, Lymphatic Filariasis, Trichuriasis, and Schistosomiasis and thus were not included in this analysis. However, the cross-validation accuracy was good for all disease available.
+
+### Prevalence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#Prevalence
+PredictionPlot.func(merge_pred_Prevalence,"Number of Prevalence (in Millions)", 2017)
+```
+
+We generally observed a good prediction for the prevalence. However, Lymphatic Filariasis seem to have a very bad prediction and prediction were outside of the 99% confidence interval.
+
+### Funding 
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+## Funding
+PredictionPlot.func(merge_pred_Funding, "Funding (in Millions of Dollars)", 2017)
+
+```
+
+looking at teh funding data compared to the burden data, it is easy to notice that the funding data is much noisier. because of the high level of noise, the model given its univariate essence was not able to do a good prediction. Most prediction were constant. We note that this could be fixed either by providing more time points or using a multivariate statistical approach.
+
+
+## Forecasting into the future
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+
+#### Forecast into te future
+
+########################## Forecasting 2011 to 2017 from the first model to show model accuracy
+l_pred2 <- length(2018:2030) # number of years to predict
+nYears <- 2018:2030 # the actual year to predict into the future
+#### DALYs
+DALYs_Chagas_Pred2 <- forecast(DALYs_Chagas_Fit2,h = l_pred2, level = c(99))
+DALYs_Leish_Pred2 <- forecast(DALYs_Leish_Fit2, h = l_pred2, level = c(99))
+DALYs_Schis_Pred2 <- forecast(DALYs_Schis_Fit2, h = l_pred2, level = c(99))
+DALYs_Lymp_Pred2 <- forecast(DALYs_Lymp_Fit2, h = l_pred2, level = c(99))
+DALYs_Dengue_Pred2 <- forecast(DALYs_Dengue_Fit2, h = l_pred2, level = c(99))
+DALYs_Echin_Pred2 <- forecast(DALYs_Echin_Fit2, h = l_pred2, level = c(99))
+DALYs_Hook_Pred2 <- forecast(DALYs_Hook_Fit2, h = l_pred2, level = c(99))
+DALYs_Trich_Pred2 <- forecast(DALYs_Trich_Fit2, h = l_pred2, level = c(99))
+DALYs_Other_Pred2 <- forecast(DALYs_Other_Fit2, h = l_pred2, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+DALYs_pred2 <- rbind(
+  data.frame(Year = nYears,Predicted = as.numeric(DALYs_Chagas_Pred2$mean),
+             Lower = as.numeric(DALYs_Chagas_Pred2$lower),Upper = as.numeric(DALYs_Chagas_Pred2$upper),
+             Diseases = rep("Chagas",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(DALYs_Leish_Pred2$mean),
+             Lower = as.numeric(DALYs_Leish_Pred2$lower),Upper = as.numeric(DALYs_Leish_Pred2$upper),
+             Diseases = rep("Leishmaniasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(DALYs_Schis_Pred2$mean),
+             Lower = as.numeric(DALYs_Schis_Pred2$lower),Upper = as.numeric(DALYs_Schis_Pred2$upper),
+             Diseases = rep("Schistosomiasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(DALYs_Lymp_Pred2$mean),
+             Lower = as.numeric(DALYs_Lymp_Pred2$lower),Upper = as.numeric(DALYs_Lymp_Pred2$upper),
+             Diseases = rep("Lymphatic Filariasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(DALYs_Dengue_Pred2$mean),
+             Lower = as.numeric(DALYs_Dengue_Pred2$lower),Upper = as.numeric(DALYs_Dengue_Pred2$upper),
+             Diseases = rep("Dengue",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(DALYs_Echin_Pred2$mean),
+             Lower = as.numeric(DALYs_Echin_Pred2$lower),Upper = as.numeric(DALYs_Echin_Pred2$upper),
+             Diseases = rep("Echinococcus",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(DALYs_Hook_Pred2$mean),
+             Lower = as.numeric(DALYs_Hook_Pred2$lower),Upper = as.numeric(DALYs_Hook_Pred2$upper),
+             Diseases = rep("Hookworm",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(DALYs_Trich_Pred2$mean),
+             Lower = as.numeric(DALYs_Trich_Pred2$lower),Upper = as.numeric(DALYs_Trich_Pred2$upper),
+             Diseases = rep("Trichuriasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(DALYs_Other_Pred2$mean),
+             Lower = as.numeric(DALYs_Other_Pred2$lower),Upper = as.numeric(DALYs_Other_Pred2$upper),
+             Diseases = rep("Other",l_pred2))
+)
+  
+
+
+#### YLLs
+YLLs_Chagas_Pred2 <- forecast(YLLs_Chagas_Fit2,h = l_pred2, level = c(99))
+YLLs_Leish_Pred2 <- forecast(YLLs_Leish_Fit2, h = l_pred2, level = c(99))
+YLLs_Schis_Pred2 <- forecast(YLLs_Schis_Fit2, h = l_pred2, level = c(99))
+# YLLs_Lymp_Pred <- forecast(YLLs_Lymp_Fit, h = 5, level = c(99))
+YLLs_Dengue_Pred2 <- forecast(YLLs_Dengue_Fit2, h = l_pred2, level = c(99))
+YLLs_Echin_Pred2 <- forecast(YLLs_Echin_Fit2, h = l_pred2, level = c(99))
+# YLLs_Hook_Pred <- forecast(YLLs_Hook_Fit, h = 5, level = c(99))
+# YLLs_Trich_Pred <- forecast(YLLs_Trich_Fit, h = 5, level = c(99))
+YLLs_Other_Pred2 <- forecast(YLLs_Other_Fit2, h = l_pred2, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+YLLs_pred2 <- rbind(
+  data.frame(Year = nYears,Predicted = as.numeric(YLLs_Chagas_Pred2$mean),
+             Lower = as.numeric(YLLs_Chagas_Pred2$lower),Upper = as.numeric(YLLs_Chagas_Pred2$upper),
+             Diseases = rep("Chagas",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLLs_Leish_Pred2$mean),
+             Lower = as.numeric(YLLs_Leish_Pred2$lower),Upper = as.numeric(YLLs_Leish_Pred2$upper),
+             Diseases = rep("Leishmaniasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLLs_Schis_Pred2$mean),
+             Lower = as.numeric(YLLs_Schis_Pred2$lower),Upper = as.numeric(YLLs_Schis_Pred2$upper),
+             Diseases = rep("Schistosomiasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLLs_Dengue_Pred2$mean),
+             Lower = as.numeric(YLLs_Dengue_Pred2$lower),Upper = as.numeric(YLLs_Dengue_Pred2$upper),
+             Diseases = rep("Dengue",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLLs_Echin_Pred2$mean),
+             Lower = as.numeric(YLLs_Echin_Pred2$lower),Upper = as.numeric(YLLs_Echin_Pred2$upper),
+             Diseases = rep("Echinococcus",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLLs_Other_Pred2$mean),
+             Lower = as.numeric(YLLs_Other_Pred2$lower),Upper = as.numeric(YLLs_Other_Pred2$upper),
+             Diseases = rep("Other",l_pred2))
+)
+
+
+
+#### YLDs
+YLDs_Chagas_Pred2 <- forecast(YLDs_Chagas_Fit2,h = l_pred2, level = c(99))
+YLDs_Leish_Pred2 <- forecast(YLDs_Leish_Fit2, h = l_pred2, level = c(99))
+YLDs_Schis_Pred2 <- forecast(YLDs_Schis_Fit2, h = l_pred2, level = c(99))
+YLDs_Lymp_Pred2 <- forecast(YLDs_Lymp_Fit2, h = l_pred2, level = c(99))
+YLDs_Dengue_Pred2 <- forecast(YLDs_Dengue_Fit2, h = l_pred2, level = c(99))
+YLDs_Echin_Pred2 <- forecast(YLDs_Echin_Fit2, h = l_pred2, level = c(99))
+YLDs_Hook_Pred2 <- forecast(YLDs_Hook_Fit2, h = l_pred2, level = c(99))
+YLDs_Trich_Pred2 <- forecast(YLDs_Trich_Fit2, h = l_pred2, level = c(99))
+YLDs_Other_Pred2 <- forecast(YLDs_Other_Fit2, h = l_pred2, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+YLDs_pred2 <- rbind(
+  data.frame(Year = nYears,Predicted = as.numeric(YLDs_Chagas_Pred2$mean),
+             Lower = as.numeric(YLDs_Chagas_Pred2$lower),Upper = as.numeric(YLDs_Chagas_Pred2$upper),
+             Diseases = rep("Chagas",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLDs_Leish_Pred2$mean),
+             Lower = as.numeric(YLDs_Leish_Pred2$lower),Upper = as.numeric(YLDs_Leish_Pred2$upper),
+             Diseases = rep("Leishmaniasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLDs_Schis_Pred2$mean),
+             Lower = as.numeric(YLDs_Schis_Pred2$lower),Upper = as.numeric(YLDs_Schis_Pred2$upper),
+             Diseases = rep("Schistosomiasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLDs_Lymp_Pred2$mean),
+             Lower = as.numeric(YLDs_Lymp_Pred2$lower),Upper = as.numeric(YLDs_Lymp_Pred2$upper),
+             Diseases = rep("Lymphatic Filariasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLDs_Dengue_Pred2$mean),
+             Lower = as.numeric(YLDs_Dengue_Pred2$lower),Upper = as.numeric(YLDs_Dengue_Pred2$upper),
+             Diseases = rep("Dengue",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLDs_Echin_Pred2$mean),
+             Lower = as.numeric(YLDs_Echin_Pred2$lower),Upper = as.numeric(YLDs_Echin_Pred2$upper),
+             Diseases = rep("Echinococcus",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLDs_Hook_Pred2$mean),
+             Lower = as.numeric(YLDs_Hook_Pred2$lower),Upper = as.numeric(YLDs_Hook_Pred2$upper),
+             Diseases = rep("Hookworm",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLDs_Trich_Pred2$mean),
+             Lower = as.numeric(YLDs_Trich_Pred2$lower),Upper = as.numeric(YLDs_Trich_Pred2$upper),
+             Diseases = rep("Trichuriasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(YLDs_Other_Pred2$mean),
+             Lower = as.numeric(YLDs_Other_Pred2$lower),Upper = as.numeric(YLDs_Other_Pred2$upper),
+             Diseases = rep("Other",l_pred2))
+)
+
+
+#### Deaths
+Deaths_Chagas_Pred2 <- forecast(Deaths_Chagas_Fit2,h = l_pred2, level = c(99))
+Deaths_Leish_Pred2 <- forecast(Deaths_Leish_Fit2, h = l_pred2, level = c(99))
+Deaths_Schis_Pred2 <- forecast(Deaths_Schis_Fit2, h = l_pred2, level = c(99))
+# Deaths_Lymp_Pred <- forecast(Deaths_Lymp_Fit, h = 5, level = c(99))
+Deaths_Dengue_Pred2 <- forecast(Deaths_Dengue_Fit2, h = l_pred2, level = c(99))
+Deaths_Echin_Pred2 <- forecast(Deaths_Echin_Fit2, h = l_pred2, level = c(99))
+# Deaths_Hook_Pred <- forecast(Deaths_Hook_Fit, h = 5, level = c(99))
+# Deaths_Trich_Pred <- forecast(Deaths_Trich_Fit, h = 5, level = c(99))
+Deaths_Other_Pred2 <- forecast(Deaths_Other_Fit2, h = l_pred2, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+Deaths_pred2 <- rbind(
+  data.frame(Year = nYears,Predicted = as.numeric(Deaths_Chagas_Pred2$mean),
+             Lower = as.numeric(Deaths_Chagas_Pred2$lower),Upper = as.numeric(Deaths_Chagas_Pred2$upper),
+             Diseases = rep("Chagas",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Deaths_Leish_Pred2$mean),
+             Lower = as.numeric(Deaths_Leish_Pred2$lower),Upper = as.numeric(Deaths_Leish_Pred2$upper),
+             Diseases = rep("Leishmaniasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Deaths_Schis_Pred2$mean),
+             Lower = as.numeric(Deaths_Schis_Pred2$lower),Upper = as.numeric(Deaths_Schis_Pred2$upper),
+             Diseases = rep("Schistosomiasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Deaths_Dengue_Pred2$mean),
+             Lower = as.numeric(Deaths_Dengue_Pred2$lower),Upper = as.numeric(Deaths_Dengue_Pred2$upper),
+             Diseases = rep("Dengue",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Deaths_Echin_Pred2$mean),
+             Lower = as.numeric(Deaths_Echin_Pred2$lower),Upper = as.numeric(Deaths_Echin_Pred2$upper),
+             Diseases = rep("Echinococcus",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Deaths_Other_Pred2$mean),
+             Lower = as.numeric(Deaths_Other_Pred2$lower),Upper = as.numeric(Deaths_Other_Pred2$upper),
+             Diseases = rep("Other",l_pred2))
+)
+
+
+
+#### Incidence
+Incidence_Chagas_Pred2 <- forecast(Incidence_Chagas_Fit2,h = l_pred2, level = c(99))
+Incidence_Leish_Pred2 <- forecast(Incidence_Leish_Fit2, h = l_pred2, level = c(99))
+# Incidence_Schis_Pred <- forecast(Incidence_Schis_Fit, h = 7, level = c(99))
+# Incidence_Lymp_Pred <- forecast(Incidence_Lymp_Fit, h = 5, level = c(99))
+Incidence_Dengue_Pred2 <- forecast(Incidence_Dengue_Fit2, h = l_pred2, level = c(99))
+Incidence_Echin_Pred2 <- forecast(Incidence_Echin_Fit2, h = l_pred2, level = c(99))
+# Incidence_Hook_Pred <- forecast(Incidence_Hook_Fit, h = 5, level = c(99))
+# Incidence_Trich_Pred <- forecast(Incidence_Trich_Fit, h = 5, level = c(99))
+Incidence_Other_Pred2 <- forecast(Incidence_Other_Fit2, h = l_pred2, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+Incidence_pred2 <- rbind(
+  data.frame(Year = nYears,Predicted = as.numeric(Incidence_Chagas_Pred2$mean),
+             Lower = as.numeric(Incidence_Chagas_Pred2$lower),Upper = as.numeric(Incidence_Chagas_Pred2$upper),
+             Diseases = rep("Chagas",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Incidence_Leish_Pred2$mean),
+             Lower = as.numeric(Incidence_Leish_Pred2$lower),Upper = as.numeric(Incidence_Leish_Pred2$upper),
+             Diseases = rep("Leishmaniasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Incidence_Dengue_Pred2$mean),
+             Lower = as.numeric(Incidence_Dengue_Pred2$lower),Upper = as.numeric(Incidence_Dengue_Pred2$upper),
+             Diseases = rep("Dengue",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Incidence_Echin_Pred2$mean),
+             Lower = as.numeric(Incidence_Echin_Pred2$lower),Upper = as.numeric(Incidence_Echin_Pred2$upper),
+             Diseases = rep("Echinococcus",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Incidence_Other_Pred2$mean),
+             Lower = as.numeric(Incidence_Other_Pred2$lower),Upper = as.numeric(Incidence_Other_Pred2$upper),
+             Diseases = rep("Other",l_pred2))
+)
+
+
+#### Prevalence
+Prevalence_Chagas_Pred2 <- forecast(Prevalence_Chagas_Fit2,h = l_pred2, level = c(99))
+Prevalence_Leish_Pred2 <- forecast(Prevalence_Leish_Fit2, h = l_pred2, level = c(99))
+Prevalence_Schis_Pred2 <- forecast(Prevalence_Schis_Fit2, h = l_pred2, level = c(99))
+Prevalence_Lymp_Pred2 <- forecast(Prevalence_Lymp_Fit2, h = l_pred2, level = c(99))
+Prevalence_Dengue_Pred2 <- forecast(Prevalence_Dengue_Fit2, h = l_pred2, level = c(99))
+Prevalence_Echin_Pred2 <- forecast(Prevalence_Echin_Fit2, h = l_pred2, level = c(99))
+Prevalence_Hook_Pred2 <- forecast(Prevalence_Hook_Fit2, h = l_pred2, level = c(99))
+Prevalence_Trich_Pred2 <- forecast(Prevalence_Trich_Fit2, h = l_pred2, level = c(99))
+Prevalence_Other_Pred2 <- forecast(Prevalence_Other_Fit2, h = l_pred2, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+Prevalence_pred2 <- rbind(
+  data.frame(Year = nYears,Predicted = as.numeric(Prevalence_Chagas_Pred2$mean),
+             Lower = as.numeric(Prevalence_Chagas_Pred2$lower),Upper = as.numeric(Prevalence_Chagas_Pred2$upper),
+             Diseases = rep("Chagas",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Prevalence_Leish_Pred2$mean),
+             Lower = as.numeric(Prevalence_Leish_Pred2$lower),Upper = as.numeric(Prevalence_Leish_Pred2$upper),
+             Diseases = rep("Leishmaniasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Prevalence_Schis_Pred2$mean),
+             Lower = as.numeric(Prevalence_Schis_Pred2$lower),Upper = as.numeric(Prevalence_Schis_Pred2$upper),
+             Diseases = rep("Schistosomiasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Prevalence_Lymp_Pred2$mean),
+             Lower = as.numeric(Prevalence_Lymp_Pred2$lower),Upper = as.numeric(Prevalence_Lymp_Pred2$upper),
+             Diseases = rep("Lymphatic Filariasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Prevalence_Dengue_Pred2$mean),
+             Lower = as.numeric(Prevalence_Dengue_Pred2$lower),Upper = as.numeric(Prevalence_Dengue_Pred2$upper),
+             Diseases = rep("Dengue",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Prevalence_Echin_Pred2$mean),
+             Lower = as.numeric(Prevalence_Echin_Pred2$lower),Upper = as.numeric(Prevalence_Echin_Pred2$upper),
+             Diseases = rep("Echinococcus",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Prevalence_Hook_Pred2$mean),
+             Lower = as.numeric(Prevalence_Hook_Pred2$lower),Upper = as.numeric(Prevalence_Hook_Pred2$upper),
+             Diseases = rep("Hookworm",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Prevalence_Trich_Pred2$mean),
+             Lower = as.numeric(Prevalence_Trich_Pred2$lower),Upper = as.numeric(Prevalence_Trich_Pred2$upper),
+             Diseases = rep("Trichuriasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Prevalence_Other_Pred2$mean),
+             Lower = as.numeric(Prevalence_Other_Pred2$lower),Upper = as.numeric(Prevalence_Other_Pred2$upper),
+             Diseases = rep("Other",l_pred2))
+)
+
+
+#### Funding
+Funding_Chagas_Pred2 <- forecast(Funding_Chagas_Fit2,h = l_pred2, level = c(99))
+Funding_Leish_Pred2 <- forecast(Funding_Leish_Fit2, h = l_pred2, level = c(99))
+Funding_Schis_Pred2 <- forecast(Funding_Schis_Fit2, h = l_pred2, level = c(99))
+Funding_Lymp_Pred2 <- forecast(Funding_Lymp_Fit2, h = l_pred2, level = c(99))
+Funding_Dengue_Pred2 <- forecast(Funding_Dengue_Fit2, h = l_pred2, level = c(99))
+Funding_Echin_Pred2 <- forecast(Funding_Echin_Fit2, h = l_pred2, level = c(99))
+Funding_Hook_Pred2 <- forecast(Funding_Hook_Fit2, h = l_pred2, level = c(99))
+Funding_Trich_Pred2 <- forecast(Funding_Trich_Fit2, h = l_pred2, level = c(99))
+Funding_Other_Pred2 <- forecast(Funding_Other_Fit2, h = l_pred2, level = c(99))
+
+##Combine in mean, lower CI and Upper Ci in data frame
+Funding_pred2 <- rbind(
+  data.frame(Year = nYears,Predicted = as.numeric(Funding_Chagas_Pred2$mean),
+             Lower = as.numeric(Funding_Chagas_Pred2$lower),Upper = as.numeric(Funding_Chagas_Pred2$upper),
+             Diseases = rep("Chagas",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Funding_Leish_Pred2$mean),
+             Lower = as.numeric(Funding_Leish_Pred2$lower),Upper = as.numeric(Funding_Leish_Pred2$upper),
+             Diseases = rep("Leishmaniasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Funding_Schis_Pred2$mean),
+             Lower = as.numeric(Funding_Schis_Pred2$lower),Upper = as.numeric(Funding_Schis_Pred2$upper),
+             Diseases = rep("Schistosomiasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Funding_Lymp_Pred2$mean),
+             Lower = as.numeric(Funding_Lymp_Pred2$lower),Upper = as.numeric(Funding_Lymp_Pred2$upper),
+             Diseases = rep("Lymphatic Filariasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Funding_Dengue_Pred2$mean),
+             Lower = as.numeric(Funding_Dengue_Pred2$lower),Upper = as.numeric(Funding_Dengue_Pred2$upper),
+             Diseases = rep("Dengue",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Funding_Echin_Pred2$mean),
+             Lower = as.numeric(Funding_Echin_Pred2$lower),Upper = as.numeric(Funding_Echin_Pred2$upper),
+             Diseases = rep("Echinococcus",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Funding_Hook_Pred2$mean),
+             Lower = as.numeric(Funding_Hook_Pred2$lower),Upper = as.numeric(Funding_Hook_Pred2$upper),
+             Diseases = rep("Hookworm",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Funding_Trich_Pred2$mean),
+             Lower = as.numeric(Funding_Trich_Pred2$lower),Upper = as.numeric(Funding_Trich_Pred2$upper),
+             Diseases = rep("Trichuriasis",l_pred2)),
+  data.frame(Year = nYears,Predicted = as.numeric(Funding_Other_Pred2$mean),
+             Lower = as.numeric(Funding_Other_Pred2$lower),Upper = as.numeric(Funding_Other_Pred2$upper),
+             Diseases = rep("Other",l_pred2))
+)
+
+```
+
+
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+
+################### Construct a data.frame of all prediction and actual value
+
+## Create function to do the merging of the data
+merge_pred2 <- function(Data, BurdenID, PredictData){
+  # data takes the disease burden data
+  # BurdenID take the disease burden id in quotation
+  # PredictData is the data of the predicted value (mean, confidence intervals)
+  sub.data <- subset(Data, Burden_id == BurdenID)
+  result <- full_join(sub.data, PredictData, by = c("Year","Diseases"))
+  return(result) 
+}
+
+
+#DALYs
+merge_pred2_DALYs <- merge_pred2(Burden2,"2",DALYs_pred2)
+
+#YLLs
+merge_pred2_YLLs <- merge_pred2(Burden2,"4",YLLs_pred2)
+
+#YLDs
+merge_pred2_YLDs <- merge_pred2(Burden2,"3",YLDs_pred2)
+
+#Deaths
+merge_pred2_Deaths <- merge_pred2(Burden2,"1",Deaths_pred2)
+
+#Incidence
+merge_pred2_Incidence <- merge_pred2(Burden2,"6",Incidence_pred2)
+
+#Prevalence
+merge_pred2_Prevalence <- merge_pred2(Burden2,"5",Prevalence_pred2)
+
+
+
+## Funding
+#Funding_pred2$Year <- as.factor(Funding_pred2$Year) # Convert year to numeric
+merge_pred2_Funding <- full_join(data_awards2, Funding_pred2, by = c("Year","Diseases")) %>% 
+  rename(Value = "Award_defl") %>% 
+  select(-Award)
+
+```
+
+
+### Disability-Adjusted Life Years (DALYs)
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+
+#DALYs
+PredictionPlot.func(merge_pred2_DALYs,"Disability-Adjusted Life Years (in Millions)", 2030)
+```
+
+### Years of Life Lost (YLLs)
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#YLLs
+PredictionPlot.func(merge_pred2_YLLs,"Years of Life Lost (in Millions)", 2030)
+
+```
+
+### Years Lived with Disability (YLDs)
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#YLDs
+PredictionPlot.func(merge_pred2_YLDs,"Years Lived with Disability (in Millions)", 2030)
+
+
+```
+
+### Mortality
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#Deaths
+PredictionPlot.func(merge_pred2_Deaths,"Number of Mortality (in Millions)", 2030)
+```
+
+### Incidence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#Incidence
+PredictionPlot.func(merge_pred2_Incidence,"Number of Incidence (in Millions)", 2030)
+```
+
+### Prevalence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#Prevalence
+PredictionPlot.func(merge_pred2_Prevalence,"Number of Prevalence (in Millions)", 2030)
+```
+
+
+### Funding
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+## Funding
+PredictionPlot.func(merge_pred2_Funding, "Funding (in Millions of Dollars)", 2030)
+
+```
+
+
+We niote from all prediction that the optimum parameter values for p and q happen to be 0 or 1. This yield a constant prediction. We hypothesis that this could be due to our short data frame. It is recommended to use at least 50 time points when conducting an ARIMA model so having more time point may correct this issue. Moreover, we point out that there could be other variable not taken into account that is affecting our future prediction given that ARIMA is a univariate model. Having a multivariate time serie model where we incorporate at least both funding and burden may provide better accuracy. We then conclude that the prediction into the future may not be constant as observe in this work if one was to use more times series data in addition to a multivariate statistical approach.
+
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+
+## function to calculate the correlation coefficient and return p-value
+
+cor_func2 <- function(Burden_Data,Award_Data,Disease){
+  #Burden_Data is the predicted disease (e.g. DALYs_pred2)
+  # Award_Data is the complete award datatset (i.e. Funding_pred2)
+  # Disease is the disease name in quotation (e.g. "Chagas")
+  
+  disease <- subset(Burden_Data, Diseases== Disease)
+  award <- subset(Award_Data, Diseases ==Disease)
+  
+  # order data in descing order by Year
+  disease2 <- disease[order(disease$Year),]
+  award2 <- award[order(award$Year),]
+  
+  # Merge the two datatsets so the year have one to one relationship
+  disease_award <- merge(disease2,award2,by = "Year")
+  
+  c <- cor.test(disease_award$Predicted.x, disease_award$Predicted.y, method = "spearman", 
+                use ="complete.obs")
+  result <- data.frame(c$estimate,c$p.value)
+  colnames(result) <- c("Coef","Pval")
+  return(result)
+}
+
+# #### DALYs
+# ## "Chagas"
+# cor_func2(DALYs_pred2,Funding_pred2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func2(DALYs_pred2,Funding_pred2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func2(DALYs_pred2,Funding_pred2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func2(DALYs_pred2,Funding_pred2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func2(DALYs_pred2,Funding_pred2,"Dengue")
+# ## "Echinococcus"
+# cor_func2(DALYs_pred2,Funding_pred2,"Echinococcus")
+# ## "Hookworm"
+# cor_func2(DALYs_pred2,Funding_pred2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func2(DALYs_pred2,Funding_pred2,"Trichuriasis")
+# ## "Other"
+# cor_func2(DALYs_pred2,Funding_pred2,"Other")
+# 
+# # #### YLLs (Years of Life Lost)
+# # ## "Chagas"
+# cor_func2(YLLs_pred2,Funding_pred2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func2(YLLs_pred2,Funding_pred2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func2(YLLs_pred2,Funding_pred2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func2(YLLs_pred2,Funding_pred2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func2(YLLs_pred2,Funding_pred2,"Dengue")
+# ## "Echinococcus"
+# cor_func2(YLLs_pred2,Funding_pred2,"Echinococcus")
+# ## "Hookworm"
+# cor_func2(YLLs_pred2,Funding_pred2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func2(YLLs_pred2,Funding_pred2,"Trichuriasis")
+# ## "Other"
+# cor_func2(YLLs_pred2,Funding_pred2,"Other")
+# # 
+# # 
+# # #### YLDs (Years Lived with Disability)
+# # ## "Chagas"
+# cor_func2(YLDs_pred2,Funding_pred2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func2(YLDs_pred2,Funding_pred2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func2(YLDs_pred2,Funding_pred2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func2(YLDs_pred2,Funding_pred2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func2(YLDs_pred2,Funding_pred2,"Dengue")
+# ## "Echinococcus"
+# cor_func2(YLDs_pred2,Funding_pred2,"Echinococcus")
+# ## "Hookworm"
+# cor_func2(YLDs_pred2,Funding_pred2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func2(YLDs_pred2,Funding_pred2,"Trichuriasis")
+# ## "Other"
+# cor_func2(YLDs_pred2,Funding_pred2,"Other")
+# # 
+# # 
+# # #### ## Deaths
+# # ## "Chagas"
+# cor_func2(Deaths_pred2,Funding_pred2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func2(Deaths_pred2,Funding_pred2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func2(Deaths_pred2,Funding_pred2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func2(Deaths_pred2,Funding_pred2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func2(Deaths_pred2,Funding_pred2,"Dengue")
+# ## "Echinococcus"
+# cor_func2(Deaths_pred2,Funding_pred2,"Echinococcus")
+# ## "Hookworm"
+# cor_func2(Deaths_pred2,Funding_pred2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func2(Deaths_pred2,Funding_pred2,"Trichuriasis")
+# ## "Other"
+# cor_func2(Deaths_pred2,Funding_pred2,"Other")
+# # 
+# # #### Incidence
+# # ## "Chagas"
+# cor_func2(Incidence_pred2,Funding_pred2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func2(Incidence_pred2,Funding_pred2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func2(Incidence_pred2,Funding_pred2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func2(Incidence_pred2,Funding_pred2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func2(Incidence_pred2,Funding_pred2,"Dengue")
+# ## "Echinococcus"
+# cor_func2(Incidence_pred2,Funding_pred2,"Echinococcus")
+# ## "Hookworm"
+# cor_func2(Incidence_pred2,Funding_pred2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func2(Incidence_pred2,Funding_pred2,"Trichuriasis")
+# ## "Other"
+# cor_func2(Incidence_pred2,Funding_pred2,"Other")
+# # 
+# # 
+# # #### Prevalence
+# # ## "Chagas"
+# cor_func2(Prevalence_pred2,Funding_pred2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func2(Prevalence_pred2,Funding_pred2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func2(Prevalence_pred2,Funding_pred2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func2(Prevalence_pred2,Funding_pred2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func2(Prevalence_pred2,Funding_pred2,"Dengue")
+# ## "Echinococcus"
+# cor_func2(Prevalence_pred2,Funding_pred2,"Echinococcus")
+# ## "Hookworm"
+# cor_func2(Prevalence_pred2,Funding_pred2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func2(Prevalence_pred2,Funding_pred2,"Trichuriasis")
+# ## "Other"
+# cor_func2(Prevalence_pred2,Funding_pred2,"Other")
+
+
+```
+
+

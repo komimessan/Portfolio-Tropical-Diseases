@@ -1,0 +1,216 @@
+# Distribution of Diseases burden by Countries
+
+In this section, we studied the level of disease burden in countries where funded was received from NIAID. Our analysis focused on checking whether the level of disease burden correlate with countries' poverty level. In this study, we used the per capita GDP (obtained from the [world bank database](https://databank.worldbank.org/reports.aspx?source=2&series=NY.GDP.PCAP.PP.KD&country=#)) to evaluate countries' poverty level. Given the fact that, certain countries will have a higher population and therefore the burden may seems higher, we extracted the population size (again from the [world bank database](https://databank.worldbank.org/reports.aspx?source=2&series=NY.GDP.PCAP.PP.KD&country=#)) from 1990 to 2017 and took the average of both the population size and the per capita GDP of 1990 to 2017. The average population size was used to calculate the per capita burden in  a country (i.e. DALYs/population). 
+
+All the data were scaled for ease of comparison and we plotted both all countries data and certain subset of the data that does not include countries in the northern or southern hemisphere since these are not in the tropical regions and should not have neglect tropical diseases. these plots were however included seprately in the presentation and thus not in this RMD file. 
+
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+
+## Extract all country data
+Burden.Countries <- All.Burden %>% 
+  filter(location_id !="1") %>% # Remove Global and keep all countries
+  filter(cause_id != "297", cause_id != "345",
+         cause_id != "334", cause_id != "298",
+         cause_id != "350") %>%  # remove TB, malaria, Influenza B, HIV/AIDS, and african tripano.
+  select(c(cause_id,measure_id,measure_name,location_name,cause_name,year,val)) 
+
+
+## Create associated diseases category
+n3 <- dim(Burden.Countries)[1]
+
+Associated.Disease3 <- rep(NA, n3) # Empty vector of size n3
+
+for (i in 1:n3) {
+if (Burden.Countries$cause_id[i] == "347") {
+  Associated.Disease3[i] = "Leishmaniasis"
+} else if (Burden.Countries$cause_id[i] == "346") {
+  Associated.Disease3[i] = "Chagas"     
+} else if (Burden.Countries$cause_id[i] == "351") {
+  Associated.Disease3[i] = "Schistosomiasis"    
+} else if (Burden.Countries$cause_id[i] == "357") {
+  Associated.Disease3[i] = "Dengue"    
+} else if (Burden.Countries$cause_id[i] == "354") {
+  Associated.Disease3[i] = "Lymphatic Filariasis"
+} else if (Burden.Countries$cause_id[i] == "353") {
+  Associated.Disease3[i] = "Echinococcus"
+} else if (Burden.Countries$cause_id[i] == "363") {
+  Associated.Disease3[i] = "Hookworm"
+} else if (Burden.Countries$cause_id[i] == "362") {
+  Associated.Disease3[i] = "Trichuriasis"
+} else {
+  Associated.Disease3[i] = "Other"    
+    }
+}
+
+## Add the disease category column
+Burden.Countries$Diseases <- factor(Associated.Disease3,
+                               levels = c("Chagas","Leishmaniasis","Schistosomiasis",
+                                          "Lymphatic Filariasis", "Dengue", "Echinococcus",
+                                      "Hookworm","Trichuriasis","Other"))
+
+
+
+# Group by year and diseases
+Burden.Countries2 <- Burden.Countries %>% 
+  group_by(Diseases, measure_name, measure_id, location_name) %>% 
+  summarize(Value = mean(val)) %>% 
+  #distinct(Diseases, year, measure_name, location_name, .keep_all = TRUE) %>% 
+  rename(Burden_id = "measure_id", Burden_name = "measure_name",
+         Countries = "location_name") 
+
+#View(head(Burden.Countries2,500))
+
+
+######################### GDP PER CAPITA DATA
+## Read in GDP Per Capita Data and country population size data
+GDP <- read.xlsx("GDP_PerCapita_World_Development.xlsx", colNames = TRUE)
+Pop <- read.xlsx("Population_World_Development.xlsx", colNames = TRUE)
+
+#### calculate the mean of GDP and Population from 1990 to 2017 and remove all data except country name and mean value
+## GDP
+Mean_GDP <- GDP %>% 
+  select(-c(Series.Name,Series.Code,Country.Code)) %>% 
+  mutate(mean_gdp = select(.,-matches("Country.Name")) %>% 
+  rowMeans(.)) %>% 
+  select(-c("1990":"2017"))
+
+colnames(Mean_GDP)[1] <- "Countries"
+Mean_GDP$Countries <- levels(factor(Burden.Countries2$Countries)) # make sure the name are written the same way
+
+## Population
+Mean_Pop <- Pop %>% 
+  select(-c(Series.Name,Series.Code,Country.Code)) %>% 
+  mutate(mean_pop = select(.,-matches("Country.Name")) %>% 
+  rowMeans(.)) %>% 
+  select(-c("1990":"2017"))
+
+colnames(Mean_Pop)[1] <- "Countries"
+Mean_Pop$Countries <- levels(factor(Burden.Countries2$Countries)) # make sure the name are written the same way
+#################################
+
+## Merge GDP and Population data
+GDP_Pop <- merge(Mean_GDP, Mean_Pop, by = "Countries")
+
+## Merge the GDP, Pop, and Disease Burden dataset
+Diseases_GDP <- merge(Burden.Countries2, GDP_Pop, by = "Countries")
+
+## Remove the column "year" since we took average over year and it became irrelevant
+Diseases_GDP <- Diseases_GDP %>% 
+  mutate(GDP_rank = dense_rank(mean_gdp)) %>%
+  mutate(Legend = paste(paste(Countries,round(mean_gdp), sep = " - $"),
+         GDP_rank, sep = " - ")) 
+
+
+```
+
+
+## Disability-Adjusted Life Years (DALYs)
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
+
+## Create a function to transform the data from long to wide table
+long_to_wide <- function(Data, BurdenID, PerCapitaBurden){
+  # Data is the merge GDP and Disease burden data
+  # BurdenID is the Disease Burden ID ranging from 1 to 6 which must be input in quotation
+  # PerCapitaBurden is either "Yes" to calculate Per Capita Disease Burden or other string for
+  # scale normal burden data
+  sub_data <- subset(Data, Burden_id == BurdenID)
+  sub_data_long <- spread(sub_data,Diseases,Value) # use value instead of per.cap.burden to see actual burden value
+  sub_data_long2 <- sub_data_long %>% arrange(GDP_rank) # order by GDP rank
+  
+  sub.sub_data_long <- sub_data_long2[,-c(1:7)] # remove irrelevant data
+  
+  # create an empty matrix of row = # of countries, column = # of diseases 
+  sub.sub_data_long2 <- matrix(NA,nrow = dim(sub.sub_data_long)[1], dim(sub.sub_data_long)[2])
+  
+  ##Select Per capita or the disease burden itself
+  
+  if (PerCapitaBurden=="Yes"){
+  # divide the burden by their corresponding population size
+  for (i in 1:dim(sub.sub_data_long)[1]){
+    sub.sub_data_long2[i,] <- as.numeric(sub.sub_data_long[i,])/sub_data_long$mean_pop[i]
+  }
+  } else {
+  for (i in 1:dim(sub.sub_data_long)[1]){
+     sub.sub_data_long2[i,] <- as.numeric(sub.sub_data_long[i,])/1
+  }
+  }
+ 
+  rownames(sub.sub_data_long2) <- sub_data_long2$Legend
+  colnames(sub.sub_data_long2) <- colnames(sub.sub_data_long)
+  #return(as.matrix(sub.sub_data_long2))
+  return(scale(sub.sub_data_long2, center = FALSE, scale = TRUE))
+}
+
+
+
+##################### PLOTTING
+## low, mid, high: Colors to use for the Lowest, middle, and highest values. 
+## We used blue, white, and red for our value
+  # the resulting matrix is scaled columnwise
+
+
+
+# heatmap.2(DALYs, scale = "none", col = bluered(20), 
+#           trace = "none", density.info = "none", keysize = 0.8, margins = c(15,15), cexRow = 1.3, cexCol = 1.3,
+#           sepcolor = "black", sepwidth=c(0.1,0.1))
+
+
+         
+## DALYs
+DALYs <- long_to_wide(Diseases_GDP,"2", "Yes")
+pheatmap(DALYs, scale = "none", legend = TRUE,cluster_rows = FALSE, fontsize = 13)
+
+```
+
+## Years of Life Lost (YLLs)
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
+## YLLs (Years of Life Lost)
+YLLs <- long_to_wide(Diseases_GDP,"4","Yes")
+pheatmap(YLLs, scale = "none", legend = TRUE, cluster_rows = FALSE, fontsize = 13)
+```
+
+## Years Lived with Disability (YLDs)
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
+## YLDs (Years Lived with Disability)
+YLDs <- long_to_wide(Diseases_GDP,"3","Yes")
+pheatmap(YLDs, scale = "none", legend = TRUE, cluster_rows = FALSE, fontsize = 13)
+
+```
+
+## Mortality
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
+## Deaths
+Deaths <- long_to_wide(Diseases_GDP,"1","Yes")
+pheatmap(Deaths, scale = "none", legend = TRUE,cluster_rows = FALSE, fontsize = 13)
+```
+
+## Incidence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
+## Incidence
+Incidence <- long_to_wide(Diseases_GDP,"6","Yes")
+pheatmap(Incidence[,c(1,2,5,6,9)], scale = "none", legend = TRUE,cluster_rows = FALSE,
+         fontsize = 13)
+```
+
+## Prevalence
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
+## Prevalence
+Prevalence <- long_to_wide(Diseases_GDP,"5","Yes")
+pheatmap(Prevalence[,c(1,2,5,6,9)], scale = "none", legend = TRUE, cluster_rows = FALSE,
+         fontsize = 13)
+
+```
+
+
+The level of burden in countries change depending on disease burden metric used. However, Brazil Phillipines and Nicaragua saw a very high level of disease burden. Leishmaniasis, Chagas, and Schistosomiasis were the most concentrated disease in Brazil while Dengue, Lymphatic Filariasis, and Trichuriasis were the most concentrated in the other countries. Asd should be expected, countries with the highest GDP per capita did not see any increase a high level of disease burden given the fact that they were not in a tropical area. 
+
+
+

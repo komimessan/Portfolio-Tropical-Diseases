@@ -1,0 +1,243 @@
+# Text analysis 
+
+In what follow we continue our analsis by focusing on the text variables for specific initiatives. Our analysis focused on the [Tropical Medicine Research Centers](https://www.niaid.nih.gov/research/tropical-medicine-research-centers) initiative (RFA AI16-002, RFA AI00-009, RFA AI06-006, and RFA AI11-001)  and data was query in isearch using the term "disease burden" resulting in 613 publications. We focused the analysis on "title", "Mesh extracted", " Abstracts", and "Condition". We intend to identify the most comon organisms and disease burden metrics that occurs the most.
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+library("tm")
+library("SnowballC")
+library("textstem") # for lemmatization
+library("tidyselect")
+```
+
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+
+## Read in data
+TextData <- openxlsx::read.xlsx("Publications_iSearchData.xlsx",colNames = TRUE)
+
+# Creat a function the clean the text data
+Clean.Text_func <- function(DataFrame){
+  # DataFrame : A data frame of text desired to be cleaned
+  # Create a function to replace all punctiation by space
+  replacePunctuation <- content_transformer(function(x) {return (gsub("[[:punct:]]"," ", x))})
+  #Clean the data
+  corpus = VCorpus(VectorSource(DataFrame)) # interpret as document
+  #corpus = tm_map(corpus, content_transformer(tolower)) # to lower case
+  corpus = tm_map(corpus, removeNumbers) # remove the numbers in the corpus
+  corpus = tm_map(corpus, replacePunctuation) # remove all punctuation
+  corpus = tm_map(corpus, removeWords, stopwords()) # remove non-relevants words like "this"
+  # corpus = tm_map(corpus, stemDocument)# removed the root of the word like love instead of lovED
+  # corpus = (corpus,  dictionary = lexicon::hash_lemmas) # to lemmatize words
+  corpus = tm_map(corpus, lemmatize_strings) # to lemmatize words (e.g. stemming and plurals to singular)
+  corpus = tm_map(corpus, PlainTextDocument) # Transform it back to the correct data type
+  corpus = tm_map(corpus, stripWhitespace) # remove unecessary space  
+  
+  return(corpus)  
+}
+
+
+# extract some of the text dataset: article title, mesh keywords, and abstract.
+sub.data <- paste(TextData$Title,TextData$MeSH.Keywords,TextData$Abstract,
+                  TextData$Condition,sep = "")
+
+sub.data_cond <- paste(TextData$Condition,sep = "")
+
+#Clean the extracted data (This may take about 10 seconds)
+
+ptm <- proc.time()
+corpus_text <- Clean.Text_func(sub.data)
+proc.time() - ptm
+
+
+## Clean the text with only conditions
+ptm <- proc.time()
+corpus_text2 <- Clean.Text_func(sub.data_cond)
+proc.time() - ptm
+
+```
+
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+
+## Function to create bag of words model
+Bag.Word_func <- function(Corpus,Percentage){
+  # Corpus : A corpus object
+  # Percentage : A percentage of the frequent word to keep (e.g 0.99 would be keep 99%)
+  BW = DocumentTermMatrix(Corpus)
+  BW = removeSparseTerms(BW, Percentage) #keep Percentage(%) of the frequent words
+  dataset = as.data.frame(as.matrix(BW)) # change to data frame
+  return(dataset)
+}
+
+# Creating the Bag of Words model for data without abstract
+dtm = Bag.Word_func(corpus_text,0.999) # term document matrix
+
+dtm2 = Bag.Word_func(corpus_text2,0.99999) # term document matrix
+
+```
+
+
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+
+# Create a function to replace all punctiation by space
+  replacePunctuation <- content_transformer(function(x) {return (gsub("[[:punct:]]"," ", x))})
+
+## Create dictionary of words to keep
+
+## Burden measures
+Burden_Metric <- str_c(c("daly","dalys","ylls","yll","yld","ylds","haly","halys","qaly","qalys",
+                   "mortality","mortalities","morbidity","incidence","prevalence"), collapse = "|")
+
+Disease_condition <- VCorpus(VectorSource(
+  c(levels(factor(Org.Code$Organism.Names)),levels(factor(data_awards2$Diseases)),"helminth")
+                                          )
+  )
+Disease_condition <- tm_map(Disease_condition, content_transformer(tolower))
+Disease_condition <- tm_map(Disease_condition, stripWhitespace)
+Disease_condition <- tm_map(Disease_condition, replacePunctuation)
+Disease_condition <- DocumentTermMatrix(Disease_condition)
+Disease_condition <- str_c(colnames(Disease_condition), collapse = "|")
+
+##Select the number of burden metric we see
+dtm_burden <- dtm %>% 
+  select(matches(Burden_Metric)) %>% 
+  select(-c("pentoxifylline","pentoxifylline","prevalencefield","prevalenceto","statesprevalence",
+            "cyclophyllidea"))
+
+## Select the organism
+dtm_organism <- dtm %>% 
+  select(matches(Disease_condition))
+
+
+```
+
+
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 8}
+
+########################## Plotting burden data
+
+Sum_burden <- dtm_burden %>%
+  replace(is.na(.), 0) %>% 
+  summarise_all(funs(sum))
+
+Sample_burden <- data.frame(colnames(dtm_burden),t(Sum_burden))
+colnames(Sample_burden) <- c("Word.Name","Word.Count")
+
+## Order the word name by word count from largest to smallest
+Sample_burden <- Sample_burden %>% 
+  arrange(desc(Word.Count))
+
+Sample_burden$Word.Name<- factor(Sample_burden$Word.Name,
+                                 levels = Sample_burden$Word.Name)
+
+# bar plot
+ggplot(Sample_burden, aes(x =Word.Name, y = Word.Count)) +
+  geom_col(fill = "gray48")+
+  xlab(NULL) +
+  ylab("Word counts") +
+ # title("Word Counts from title, abstract, keywords, and conditions of 613 publications")
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + 
+  Nice.Label2
+
+
+################## Plotting organism data
+
+Sum_organism <- dtm_organism %>%
+  replace(is.na(.), 0) %>% 
+  summarise_all(funs(sum))
+
+###### group al similar terms (e.g. adultchagas or cruzi = chagas)
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("chaga","cruzi","trypanoso"),collapse = "|")),
+             "chagas",colnames(Sum_organism)) ## all chagas related
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("leishmania","major","donov","specie","complex"),collapse = "|")),
+             "leishmaniasis",colnames(Sum_organism)) ## all leishmaniasis related
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("schistosom","japonicu","manson"),collapse = "|")),
+             "schistosomiasis",colnames(Sum_organism)) ## all schistosomiasis related
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("helminth","american","necato","opisthorch", "ascari","lumbricoi",
+                     "ancyclostom","duodenal"),collapse = "|")),
+             "helminthiasis",colnames(Sum_organism)) ## all helminthiasis related
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("taeni","solium"),collapse = "|")),
+             "taeniasis",colnames(Sum_organism)) ## all taeniasis related
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("vivax","plasmodiu","falciparu"),collapse = "|")),
+             "malaria",colnames(Sum_organism)) ## all malaria related
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("chemothe"),collapse = "|")),
+             "chemotherapy",colnames(Sum_organism)) ## all chemotherapy related
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("filaria","lymphat"),collapse = "|")),
+             "lymphatic filariasis",colnames(Sum_organism)) ## all lymphatic fylariasis related
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("hiv","aids"),collapse = "|")),
+             "hiv/aids",colnames(Sum_organism)) ## all hiv/aids related 
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("hookwor"),collapse = "|")),
+             "hookworm",colnames(Sum_organism)) ## all hookworm related 
+colnames(Sum_organism) <- ifelse(
+  str_detect(colnames(Sum_organism), 
+             paste(c("trichur","trichiu"),collapse = "|")),
+             "trichuriasis",colnames(Sum_organism)) ## all hookworm related 
+
+
+
+ 
+
+Sample_organism <- data.frame(colnames(Sum_organism),t(Sum_organism))
+colnames(Sample_organism) <- c("Word.Name","Word.Count")
+
+## Get the 40 most common words 
+Sample_organism2 <- Sample_organism %>% 
+  group_by(Word.Name) %>% 
+  summarize(Word.Count = sum(Word.Count)) %>% 
+  group_by(Word.Count) %>% 
+  arrange(Word.Count) %>% 
+  tail(.,25)
+  
+## Order the word name by word count from largest to smallest
+Sample_organism2 <- Sample_organism2 %>% 
+  arrange(desc(Word.Count))
+
+Sample_organism2$Word.Name<- factor(Sample_organism2$Word.Name,
+                                 levels = Sample_organism2$Word.Name)
+
+# bar plot
+ggplot(Sample_organism2, aes(x =Word.Name, y = Word.Count)) +
+  geom_col(fill = "gray48")+
+  xlab(NULL) +
+  ylab("Word counts") +
+ # title("Word Counts from title, abstract, keywords, and conditions of 613 publications")
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + 
+  Nice.Label2
+
+
+```
+
+
+From this analysis we note that the most common organisms under studied in this initiative are Leishmaniasis, Chagas, and Schistosomiasis while Prevalence, incidence, and mortality are some of the most common measures used to study these organisms.
+
+
+

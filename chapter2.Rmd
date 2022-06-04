@@ -1,0 +1,752 @@
+# Disease Burden
+
+Burden of disease is a concept that was developed in the 1990s by harvard School of Public Health, the Wolrd bank and the World Health Organization (WHO) to describe death and loss of health due to diseases (WHO). Since then, such definition has evolved to other metrics as display below:
+
+1. **Disability-Adjusted Life Years (DALYs):** One DALY is one lost year of “healthy life” due to disability, early death or ill-health. DALYs across population is the measurement of gap between the current health status and an ideal health situation where the population lives free of disease (source: WHO).
+
+2. **Years of Life Lost (YLLs):** Number of deaths multiplied by the standard life expectancy at the age at which death occurs (source: WHO).
+
+3. **Year Lost due to Disability (YLD):** Number of incident cases multiplied by the average duration of the disease and a weight factor that reflects the severity of the disease on a scale from 0 (perfect health) to 1 (dead) (Source: WHO).
+
+4. **Mortality:** Number of death due to the disease.
+
+5. **Incidence:** Number of new cases of disease that develop in a given period of time (Source: MedicineNet).
+
+6. **Prevalence:** Number of cases of the disease that are present in a particular population at a given time (Source: MedicineNet). 
+
+
+These metrics will be used to evaluate disease burden in the analysis. Moreover, recent disease burdens in the Global Disease Burden project are available with two years lag. Therfore, all comparison in this work to the funding will be performed using a similar two year gap (i.e. Funding from "1992 to 2019" vs. disease burden from "1990 to 2017"). The disease burden data was obtained from the Global Disease Burden project [GBD](http://ghdx.healthdata.org/gbd-2017). 
+
+## Diseases Burden and Funding in U.S. Dollars
+
+In what follow, we compared the disease burdens to the Funding for different disease categories. However we first deflated (i.e. inflation adjusted value) all the funding to 1992 values in order to see true association between funding and disease burdens. The inflation rate was calculated using The Biomedical Research and Development Price Index [(BRDPI)](https://officeofbudget.od.nih.gov/gbipriceindexes.html).
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+## Read in disease burden file for global and 26 countries
+
+All.Burden <- read.xlsx("IHME_GBD_1990_2017.xlsx", colNames = TRUE)
+
+# Extract Global variable
+
+All.Burden.Global <- All.Burden %>% filter(location_id=="1")
+
+## Remove irrelevant column and Malaria, TB, Influenza B, HIV/AIDS
+Burden <- All.Burden.Global %>% 
+  select(-c(location_id,location_name,sex_id,sex_name,age_id,age_name,
+            metric_id,metric_name,upper,lower))%>% 
+  filter(cause_id != "297", cause_id != "345",
+         cause_id != "334", cause_id != "298") # remove TB, malaria, Influenza B, HIV/AIDS
+
+
+## Create associated diseases category
+n2 <- dim(Burden)[1]
+
+Associated.Disease2 <- rep(NA, n2) # Empty vector of size n1
+
+for (i in 1:n2) {
+if (Burden$cause_id[i] == "347") {
+  Associated.Disease2[i] = "Leishmaniasis"
+} else if (Burden$cause_id[i] == "346") {
+  Associated.Disease2[i] = "Chagas"     
+} else if (Burden$cause_id[i] == "351") {
+  Associated.Disease2[i] = "Schistosomiasis"    
+} else if (Burden$cause_id[i] == "357") {
+  Associated.Disease2[i] = "Dengue"    
+} else if (Burden$cause_id[i] == "354") {
+  Associated.Disease2[i] = "Lymphatic Filariasis"
+} else if (Burden$cause_id[i] == "353") {
+  Associated.Disease2[i] = "Echinococcus"
+} else if (Burden$cause_id[i] == "363") {
+  Associated.Disease2[i] = "Hookworm"
+} else if (Burden$cause_id[i] == "362") {
+  Associated.Disease2[i] = "Trichuriasis"
+} else {
+  Associated.Disease2[i] = "Other"    
+    }
+}
+
+## Group Leishmaniasis, Schistosoma, Chagas
+Burden$Diseases2 <- factor(Associated.Disease2,
+                               levels = c("Chagas","Leishmaniasis","Schistosomiasis",
+                                          "Lymphatic Filariasis", "Dengue", "Echinococcus",
+                                      "Hookworm","Trichuriasis","Other"))
+
+# Group by year and disease
+
+Burden2 <- Burden %>% 
+group_by(Diseases2, year, measure_name, measure_id) %>% 
+  mutate(Value = sum(val)) %>% 
+  distinct(Diseases2, year,measure_name, measure_id, .keep_all = TRUE) %>% 
+  rename(Year = "year", Diseases = "Diseases2", Burden_id = "measure_id", 
+         Burden_name = "measure_name") %>% 
+  select(-c(cause_name,val))
+
+
+```
+
+
+### Disability-Adjusted Life Years (DALYs) and Funding
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+
+
+#### function for plotting
+## Plot all the data together
+
+Plot.Together <- function(Data,BurdenID, ylab){
+  # Data is the large disease burden data
+  # BurdenID is the disease BurdenID in quotation
+  # ylab is the y label in quotation
+  ggplot(data = subset(Data,Burden_id==BurdenID), aes(x = factor(Year), y=Value/1000000,
+                                                  group = Diseases)) +
+  geom_line(aes(color = Diseases), size = 1.2) +
+  geom_point(aes(color = Diseases), size = 3) +
+  labs(x = "", y = ylab, fill = "Diseases") +
+  scale_fill_manual(values = c("blue","brown","chocolate","green","magenta4","orange4",
+                               "black","tan","red")) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_x_discrete(breaks = seq(1990,2017,2)) +
+  scale_y_continuous(labels = comma, trans = "log2") +
+  scale_color_manual(values = c("blue","brown","chocolate","green","magenta4","orange4",
+                               "black","tan","red")) +
+  Nice.Label2 + theme(legend.position ="bottom")
+}
+
+
+Plot.Separate <- function(Data,BurdenID, ylab){
+  # Data is the large disease burden data
+  # BurdenID is the disease BurdenID in quotation
+  # ylab is the y label in quotation
+  Legend <- c("Funding" = "blue", "Disease Burden" = "red")
+  
+  ggplot(data = subset(Data,Burden_id==BurdenID), aes(x = factor(Year), y=Value/1000000, 
+                                                  group = Diseases)) +
+  geom_line(size = 1.2, aes(colour = "Disease Burden")) +
+  geom_point( size = 3, aes(colour = "Disease Burden")) +
+    geom_line(data = data_awards2, aes(x = factor(Year), y=Award_defl/1000000, colour = "Funding"), size = 1.2) +
+  geom_point(data = data_awards2, aes(x = factor(Year), y=Award_defl/1000000, colour = "Funding"), size = 3) +
+  facet_wrap(~Diseases, scales = "free_y",nrow = 3) +
+  labs(x = "", y = ylab) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_x_discrete(breaks = seq(1990,2017,2)) +
+  scale_y_continuous(labels = comma, trans = "log2") +
+  scale_colour_manual(name=" ", values=Legend) +
+  Nice.Label2 + theme(legend.position ="bottom") 
+}
+  
+## Plotting the diseases categories
+
+#### DALYs
+## Together
+#Plot.Together(Burden2, "2","Disability-Adjusted Life Years (DALYs; in Millions)")
+
+## Separate
+# Plot.Separate(filter(Burden2, Diseases != "Dengue" & Diseases != "Leishmaniasis" & Diseases != "Other"), "2", "Log of Funding/Disability-Adjusted Life Years (in Millions)")
+
+Plot.Separate(Burden2, "2", "Log of Funding/Disability-Adjusted Life Years (in Millions)")
+
+```
+
+Chagas, Leishmaniasis, and Echinococcus saw a decreasing trend in both funding and DALY. Dengue however saw an increasing pattern in both and this illustrate the fact that funding has not reach the critical point that will allow disease to see a decreasing pattern. Schistosomiasis however saw an inverse U shape with the minimum occuring around 2004-2006 which show the effect of funding toward the burden.
+
+### Years of Life Lost (YLLs) and Funding
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#### YLLs (Years of Life Lost)
+## Together
+#Plot.Together(Burden2, "4","Years of Life Lost (YLLs; in Millions)")
+
+## Separate
+Plot.Separate(Burden2, "4", "Log of Funding/Years of Life Lost (in Millions)")
+
+```
+
+Similar to DALY we obserevd several increading patterns (e.g. Dengue). Echinoccoccus however saw a shraper decrease in YLLs. Several burdens were not calculated (Lymphatic Filariasis, Hookworm, Trichurias) due to asbence in data.
+
+### Years Lived with Disability (YLDs) and Funding 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+
+#### YLDs (Years Lived with Disability)
+## Together
+#Plot.Together(Burden2, "3","Years Lived with Disability (YLDs; in Millions)")
+
+## Separate
+Plot.Separate(Burden2, "3", "Log of Funding/Years Lived with Disability (in Millions)")
+
+```
+
+As opposed to in DALYs and YLLs, Echinoccoccus saw an increased in YLDs. However Dengue still has an increasing pattern. Lymphatic Filariasis illustrated a an inverse U shaped as we have seen for Echinoccoccus in DALY and the minimum occured around 20004-2006.
+
+### Mortality and Funding
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#### Deaths
+## Together
+#Plot.Together(Burden2, "1","Number of Mortality (in Millions)")
+
+## Separate
+Plot.Separate(Burden2, "1", "Log Funding/Number of Mortality (in Millions)")
+
+
+```
+
+Mortality data did not exist for most of these neglected tropical diseases thus we plotted only the funding. Diseases that have death saw similar trend as in DALYs but with different magnitude.
+
+
+### Incidence and Funding 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+
+#### Incidence
+## Together
+#Plot.Together(Burden2, "6","Number of Incidence (in Millions)")
+
+## Separate
+Plot.Separate(Burden2, "6", "Log of Funding/Number of Prevalence (in Millions)")
+
+```
+
+
+As in previous cases, Lymphatic Filariasis and Hookworm have only zero incidence number so value plotted on the log scale were not display. Leishmaniasis however showa decreasing pattern up to 1998 and start increasing again. A couple years later, the burden start increasing again and close to 2012, it start decreasing again, Such behavior has not be observed using different metric.
+
+
+### Prevalence and Funding
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width= 18}
+#### Prevalence
+## Together
+#Plot.Together(Burden2, "5","Number of Incidence (in Millions)")
+
+## Separate
+Plot.Separate(Burden2, "5", "Log of Funding/Number of Prevalence (in Millions)")
+
+```
+
+Now for the first time, we observed burden for Leishmaniasis increasing throughout 2017. Overall. Dengue has been increasing independently of the burden metric.
+
+
+## Regression analysis on Funding for 1997, 2007, 2017 with respect to DALYs of 1995, 2005, and 2015
+
+Here, we performed a regression analysis by taking NIAID Funding from 1997, 2007, 2017 as depending variables and DALYs from 1995, 2005, and 2015v respectively as independent variable. Recall that to account for inflation, all funding values were deflated to 1992. Two regression models were constructed. One non-constrained model (solid line) and another constrained model that assumed no burden receives no funding (i.e. no intercept; dashed line). The R^2 which is a measure that represents the proportion of the variance for a dependent variable (e.g. Funding) that is explained by the independent Variable (DALYs) was shown only for the non-constrained model. We also show the Slope of the non-constrained model. This slope represents on average, how much unit (in million of Dollars) of duning we can expect for every additional unit (in million) of DALYs.  
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+## select the year to be extracted from both award and disease burden data
+year_selection <- c("1995","2005","2015")
+
+## Extract Award data for all organisms including TB, Malaria, HIV, and Influenza 
+data_awards.plus <- data_90_17 %>%
+  select(Fiscal.Year, Code, Organisms, `Prorated.$.(no.RMS)`) %>% 
+  filter(Code != "4296", Code != "2610") %>% 
+  filter(Fiscal.Year %in% year_selection) %>% 
+  group_by(Code, Fiscal.Year) %>% 
+  mutate(Total.Award = sum(`Prorated.$.(no.RMS)`)) %>% 
+  select(-c(`Prorated.$.(no.RMS)`)) %>% 
+  distinct(Code,Fiscal.Year, .keep_all = TRUE) %>% 
+  rename(Year = "Fiscal.Year")
+
+
+## Create associated diseases category
+n4 <- dim(data_awards.plus)[1]
+
+Associated.Disease <- rep(NA, n4) # Empty vector of size n1
+
+for (i in 1:n4) {
+  if (data_awards.plus$Code[i] == "4181" | data_awards.plus$Code[i] == "4182" | 
+      data_awards.plus$Code[i] == "4183" | data_awards.plus$Code[i] == "4188" | 
+      data_awards.plus$Code[i] == "4189") {
+    Associated.Disease[i] = "Leishmaniasis"
+  } else if (data_awards.plus$Code[i] == "4202") {
+    Associated.Disease[i] = "Chagas"     
+  } else if (data_awards.plus$Code[i] == "4311" | data_awards.plus$Code[i] == "4313") {
+    Associated.Disease[i] = "Schistosomiasis"    
+  } else if (data_awards.plus$Code[i] == "2613") {
+    Associated.Disease[i] = "Dengue"    
+  } else if (data_awards.plus$Code[i] == "4512" | data_awards.plus$Code[i] == "4513") {
+    Associated.Disease[i] = "Lymphatic Filariasis"
+  } else if (data_awards.plus$Code[i] == "4440") {
+    Associated.Disease[i] = "Echinococcus"    
+  } else if (data_awards.plus$Code[i] == "4540"){
+    Associated.Disease[i] = "Trichuriasis"
+  } else if (data_awards.plus$Code[i] == "4568"){
+    Associated.Disease[i] = "Hookworm"
+  } else if (data_awards.plus$Code[i] == "2651"){
+    Associated.Disease[i] = "HIV/AIDS"
+  } else if (data_awards.plus$Code[i] == "2120"){
+    Associated.Disease[i] = "Influenza B"
+  } else if (data_awards.plus$Code[i] == "4161" | data_awards.plus$Code[i] == "4162"|
+             data_awards.plus$Code[i] == "4163" | data_awards.plus$Code[i] == "4168" |
+             data_awards.plus$Code[i] == "4169"){
+    Associated.Disease[i] = "Malaria" 
+  } else if (data_awards.plus$Code[i] == "8131"){
+    Associated.Disease[i] = "Tuberculosis"
+  } else {
+    Associated.Disease[i] = "Other"    
+  }
+}
+
+
+## Add disease category to the award data
+data_awards.plus$Diseases <- factor(Associated.Disease,
+                               levels = c("Chagas","Leishmaniasis","Schistosomiasis",
+                                          "Lymphatic Filariasis", "Dengue", "Echinococcus",
+                                      "Hookworm","Trichuriasis","HIV/AIDS",
+                                      "Influenza B","Malaria","Tuberculosis","Other"))
+
+
+## Now group awards by disease category
+data_awards.plus2 <- data_awards.plus %>%
+  group_by(Diseases, Year) %>% 
+  summarize(Award = sum(Total.Award))
+
+## select 1995,2005, 2015 from cumulative inflation rate
+Cum_Inflat_rate2 <- Cum_Inflat_rate %>% 
+  filter(Year %in% year_selection)
+
+## merge the data of inflation rate and cumulative inflation rate 
+data_awards.plus2 <- merge(data_awards.plus2, Cum_Inflat_rate2, by ="Year")
+
+## Deflate the award  
+data_awards.plus2 <- data_awards.plus2 %>% 
+  group_by(Year, Diseases) %>% 
+  mutate(Award_defl = Award - (Award*Cum_Rate)/1)
+
+######### Extract Burden data for all organisms
+Burden.plus <- All.Burden.Global %>% 
+  select(-c(location_id,location_name,sex_id,sex_name,age_id,age_name,
+            metric_id,metric_name,upper,lower)) %>%
+  filter(measure_id == "2") %>% 
+  filter(year %in% year_selection)
+  
+
+n5 <- dim(Burden.plus)[1]
+
+Associated.Disease3 <- rep(NA, n5) # Empty vector of size n1
+
+for (i in 1:n5) {
+  if (Burden.plus$cause_id[i] == "347") {
+    Associated.Disease3[i] = "Leishmaniasis"
+  } else if (Burden.plus$cause_id[i] == "346") {
+    Associated.Disease3[i] = "Chagas"     
+  } else if (Burden.plus$cause_id[i] == "351") {
+    Associated.Disease3[i] = "Schistosomiasis"    
+  } else if (Burden.plus$cause_id[i] == "357") {
+    Associated.Disease3[i] = "Dengue"    
+  } else if (Burden.plus$cause_id[i] == "354") {
+    Associated.Disease3[i] = "Lymphatic Filariasis"
+  } else if (Burden.plus$cause_id[i] == "353") {
+    Associated.Disease3[i] = "Echinococcus"
+  } else if (Burden.plus$cause_id[i] == "363") {
+    Associated.Disease3[i] = "Hookworm"
+  } else if (Burden.plus$cause_id[i] == "362") {
+    Associated.Disease3[i] = "Trichuriasis"
+  } else if (Burden.plus$cause_id[i] == "297") {
+    Associated.Disease3[i] = "Tuberculosis"
+  } else if (Burden.plus$cause_id[i] == "345") {
+    Associated.Disease3[i] = "Malaria"
+  } else if (Burden.plus$cause_id[i] == "334") {
+    Associated.Disease3[i] = "Influenza B"
+  } else if (Burden.plus$cause_id[i] == "298") {
+    Associated.Disease3[i] = "HIV/AIDS"
+  } else {
+    Associated.Disease3[i] = "Other"    
+  }
+}
+
+
+## Group Leishmaniasis, Schistosoma, Chagas
+Burden.plus$Diseases <- factor(Associated.Disease3,
+                               levels = c("Chagas","Leishmaniasis","Schistosomiasis",
+                                          "Lymphatic Filariasis", "Dengue", "Echinococcus",
+                                      "Hookworm","Trichuriasis","HIV/AIDS",
+                                      "Influenza B","Malaria","Tuberculosis","Other"))
+
+
+## Now group burden by disease category
+Burden.plus2 <- Burden.plus %>%
+  group_by(Diseases, year) %>% 
+  summarize(Value = sum(val)) %>% 
+  rename(Year="year")
+
+
+###### Merge the disease burden and award data by year and diseases category
+
+disease_award.plus <- merge(data_awards.plus2, Burden.plus2, by = c("Diseases","Year"))
+
+disease_award.plus$Diseases <- factor(disease_award.plus$Diseases,
+                               levels = c("Chagas","Leishmaniasis","Schistosomiasis",
+                                          "Lymphatic Filariasis", "Dengue", "Echinococcus",
+                                      "Hookworm","Trichuriasis","Other","HIV/AIDS",
+                                      "Influenza B","Malaria","Tuberculosis"))
+
+### Remove HIV/AIDS, TB, Malaria, and Influenza B
+disease_award.plus2 <- disease_award.plus %>% 
+  filter(Diseases != "HIV/AIDS", Diseases != "Influenza B",
+         Diseases != "Malaria", Diseases != "Tuberculosis")
+
+```
+
+
+### DALYs of neglected and non-neglected tropical diseases
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=7, fig.width= 18}
+
+
+
+### Equation for the linear regression model
+regression <- function(df){
+        #setting the regression function. 
+        reg_fun <-lm(formula=df$Award~df$Value) #regression function
+        #getting the slope, intercept, R square and adjusted R squared of 
+        #the regression function (with 3 decimals).
+        slope<-round(coef(reg_fun)[2],3)  
+        intercept<-round(coef(reg_fun)[1],3) 
+        R2<-round(as.numeric(summary(reg_fun)[8]),3)
+        #R2.Adj<-round(as.numeric(summary(reg_fun)[9]),3)
+        c(slope,intercept,R2)
+        }
+
+
+## Use the library plyr and remove so it does not have issue with dplyr
+library("plyr")
+# with TB, Malaria, HIV/AIDS, and Influenza B
+regression_data <- ddply(disease_award.plus,"Year",regression)
+colnames(regression_data) <- c("Year", "Slope", "Intercept","R2")
+# without TB, Malaria, HIV/AIDS, and Influenza B
+regression_data2 <- ddply(disease_award.plus2,"Year",regression)
+colnames(regression_data2) <- c("Year", "Slope", "Intercept","R2")
+detach("package:plyr", unload=TRUE)
+
+
+
+## Plot the data with outlier (i.e. TB, Malaria, HIV/AIDS, Influenza B)
+ggplot(data = disease_award.plus, aes(x = Value/1000000, y = Award_defl/1000000)) +
+  geom_point(size = 2, color = "black") +
+  geom_point(data = filter(disease_award.plus, Diseases %in% 
+                             c("HIV/AIDS","Malaria","Tuberculosis","Influenza B")),
+             aes(x = Value/1000000, y = Award_defl/1000000), size = 4, color = "red" ) +
+  geom_smooth(method = lm) +
+  geom_smooth(method = lm, formula = y~0 + x, linetype = "dashed", se = FALSE) +
+  geom_text_repel(aes(label = Diseases), point.padding = 0.7) +
+  facet_wrap(~Year, scales = "free_y", nrow = 1) +
+  xlab("Disability-Adjusted Life Years (in Millions)") +
+  ylab("NIAID Funding (in Millions of Dollars)") +
+    geom_label(data=regression_data, inherit.aes=FALSE, 
+             aes(x = c(28,28,28), y = c(200,400,180),
+                 label=paste("Slope=",Slope,","," ","R^2=",R2)
+                 ),
+             label.size = 1, size = 5) +
+  theme_bw() + Nice.Label2
+
+
+```
+
+From the plot above, it is obvious to see during the year 1995, 2005, and 2015 (which corresponds to the DALY years) that HIV/AIDS, Malaria, and Tuberculosis represent outliers in the plot with HIV/AIDS being the largest outliers. We note however that while there was a huge increase of fudning toward HIV/AIDS from 1995 to 2005, the DALYs has alwasy seen a tremendous increased as illsutrated on the x-axis. Thus these graphs should be carefully read as a two-dimensional object. Inflenza B seems not to be such a great outlier in all years measured (i.e. 1995, 2005, and 2015). Another observation that can be seen here is that the slopes are always positive illsutrating the average positive response of funding on burden. Moreover, the slopes show an increasing pattern from 1995 to 2015 which point to the fact that not only the response is positive but it increases throughout the year. We however note that this analysis does not conclude that the funding response to the disease is sufficient. Further work need to be done to answer such question.
+
+### DALYs of only neglected tropical diseases
+
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=7, fig.width= 18}
+
+## Plot the data without outlier (i.e. TB, Malaria, HIV/AIDS, Influenza B) and regression 
+ggplot(data = disease_award.plus2, aes(x = Value/1000000, y = Award_defl/1000000)) +
+  geom_point(size = 2, color = "black") +
+  geom_smooth(method = lm) +
+  geom_smooth(method = lm, formula = y~0 + x, linetype = "dashed", se = FALSE) +
+  geom_text_repel(aes(label = Diseases), point.padding = 0.7) +
+  facet_wrap(~Year, scales = "free_y", nrow = 1) +
+  xlab("Disability-Adjusted Life Years (in Millions)") +
+  ylab("NIAID Funding (in Millions of Dollars)") +
+  geom_label(data=regression_data2, inherit.aes=FALSE, 
+             aes(x = 2.5, y =c(15,20,11),
+                 label=paste("Slope=",Slope,","," ","R^2=",R2)
+                 ),
+             label.size = 1, size = 5) +
+  theme_bw() + Nice.Label2
+
+###################### 
+## Create a function to find the linear regression and find difference between actual and predicted value
+
+
+```
+
+
+As in the analysis with non-neglected tropical diseases, our slope were postives and illustrated and increasing pattern. We note that all diseases below the regression lines are underfunded and those that are above the regression lines are overfunded with respect to the funded disease. With this knowledge, it can be observed that certain diseases were underfunded throughout the years (e.g. Hookworm, Trichuriasis, Lymphatic Filariasis). Certain diseases such Dengue were underfunded in 1995 and became overfunded. We also point out to the magnitude at which these diseases are either underfunded or overfunded. The magnitude can be seen byu the difference of te actual disease data to the regression line. For instance, while both hookworm and Lymphatic Filariasis were underfunded in 2005, Hookworm was much more underfunded and was not in the 99% confidence interval. This point to the need to which diseases to focus future funding on.
+
+
+
+
+### HIV/AIDS Funding and disease burden
+
+```{r  echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width= 15}
+Actual_Pred_func <- function(Data){
+  # Data is a dataframe containing the Diseases category, Year ,Funding, and Disease burden
+  # Subset the data by year
+  Data_95 <- subset(Data, Year == "1995")
+  Data_05 <- subset(Data, Year == "2005")
+  Data_15 <- subset(Data, Year == "2015")
+  # construct the model
+  Reg95 <- lm(Award_defl~ Value, data = Data_95)
+  Reg05 <- lm(Award_defl~ Value, data = Data_05)
+  Reg15 <- lm(Award_defl~ Value, data = Data_15)
+  # Make prediction for all burden value
+  pred95 <- data.frame(Data_95, predict(Reg95, data.frame(Value = Data_95$Value)))
+  colnames(pred95)[7] <- "Predicted"
+  pred05 <- data.frame(Data_05, predict(Reg05, data.frame(Value = Data_05$Value)))
+   colnames(pred05)[7] <- "Predicted"
+  pred15 <- data.frame(Data_15, predict(Reg15, data.frame(Value = Data_15$Value)))
+   colnames(pred15)[7] <- "Predicted"
+  
+  # group the data back up
+  PredData <- rbind(pred95, pred05, pred15)
+  
+  Results <- PredData %>% 
+    group_by(Diseases, Year) %>% 
+    mutate(Difference = Award_defl - Predicted) %>% 
+    summarize(Difference = round(Difference/1000000, digits = 2)) %>% 
+    spread(Year,Difference)
+  
+  return(Results)
+  
+}
+
+Prediction_all <- Actual_Pred_func(disease_award.plus)
+Prediction_sub <- Actual_Pred_func(disease_award.plus2)
+#write.xlsx(Prediction_all,"Prediction_all.xlsx", colNames = TRUE)
+#write.xlsx(Prediction_sub,"Prediction_sub.xlsx", colNames = TRUE)
+
+###### Check HIV data
+## Extract Award data for all organisms including TB, Malaria, HIV, and Influenza 
+HIV_award <- data_90_17 %>%
+  select(Fiscal.Year, Code, Organisms, `Prorated.$.(no.RMS)`) %>% 
+  filter(Code == "2651") %>% 
+  group_by(Code, Fiscal.Year) %>% 
+  mutate(Total.Award = sum(`Prorated.$.(no.RMS)`)) %>% 
+  select(-c(`Prorated.$.(no.RMS)`)) %>% 
+  distinct(Code,Fiscal.Year, .keep_all = TRUE) %>% 
+  rename(Year = "Fiscal.Year")
+
+## Merge HIV award with inflation rate
+HIV_award <- merge(HIV_award,Cum_Inflat_rate, by = "Year") %>% 
+  group_by(Year) %>% 
+  mutate(Award_defl = Total.Award - (Total.Award*Cum_Rate)/1)
+
+HIV_burden <- All.Burden.Global %>% 
+  select(-c(location_id,location_name,sex_id,sex_name,age_id,age_name,
+            metric_id,metric_name,upper,lower)) %>%
+ # filter(measure_id == "2") %>% 
+  filter(cause_id == "298") %>% 
+  rename(Year = "year", Burden = "val")
+
+HIV_data <- merge(HIV_award,HIV_burden, by = "Year") %>% select(-c(cause_name))
+
+
+#### Plot
+ggplot(HIV_data, aes(x = factor(Year), y = Burden/1000000)) +
+  geom_line(size = 1.2, aes(colour = "Disease Burden"), group = 1) +
+  geom_point( size = 3, aes(colour = "Disease Burden"), group = 1) +
+  facet_wrap(~measure_name, scales = "free_y", nrow = 3) +
+  xlab(" ") +
+  ylab("Global HIV/AIDS Disease Burden (in Millions)") +
+  scale_colour_manual(name=" ", values = c("red","blue")) +
+  theme_bw() + Nice.Label2 +
+  scale_x_discrete(breaks = seq(1990,2017,2)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5), 
+        legend.position ="bottom")  
+
+
+
+ggplot(subset(HIV_data,measure_name=="Deaths"), aes(x = factor(Year, levels = c(1990:2017), labels = c(1992:2019)), y = Award_defl/1000000)) +
+  geom_line(size = 1.2, aes(colour = "Funding"), group = 1) +
+  geom_point( size = 3, aes(colour = "Funding"), group = 1) +
+  xlab(" ") +
+  ylab("Funding on HIV/AIDS (in Millions)") +
+  scale_colour_manual(name=" ", values = c("blue","blue")) +
+  theme_bw() + Nice.Label2 +
+   scale_x_discrete(breaks = seq(1992,2019,2)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5), 
+        legend.position ="bottom") 
+
+
+```
+
+
+In addition to the regression analysis that illustrate the relationship between funding and burden, we plotted the HIV/AIDS data to show the sudden large increase in both funding from 1995 to 2005 was not an articfact from the data butr rather represent actual values. For these reasons, we plotted all burden metric for HIV/AIDS and all data show a similar pattern. We did not however go into detail analysis of this data as the focus of this project is on neglected tropcial diseases.
+
+
+## Correlation between disease burden and awards
+
+Spearman correlation was performed between the funding the disease burdens. The correlation table is attched separately (see presentation slide). The code to perfrom these correlation is however provided in the chapter.rmd file.
+
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+
+# subset(subset(Burden2,Burden_id == "2"), Diseases=="Chagas")$Value
+# subset(data_awards2, Diseases =="Chagas")$Award
+
+# View(subset(subset(Burden2,Burden_id == "2"), Diseases=="Echinococcus"))
+# View(subset(data_awards2, Diseases =="Echinococcus"))
+
+# View(subset(subset(Burden2,Burden_id == "4"), Diseases=="Hookworm"))
+# View(subset(data_awards2, Diseases =="Hookworm"))
+
+## function to calculate the correlation coefficient and return p-value
+
+cor_func <- function(Burden_Data,BurdenID,Award_Data,Disease){
+  #Burden_Data is the disease burden complete dataset
+  # BurdenID is the disease burden ID from 1 to 6 in quotation (e.g. DALYs = "2")
+  # Award_Data is the complete award datatset
+  # Disease is the disease name in quotation (e.g. "Chagas")
+  
+  disease <- subset(subset(Burden_Data,Burden_id == BurdenID), Diseases== Disease)
+  award <- subset(Award_Data, Diseases ==Disease)
+  
+  # order data in descing order by Year
+  disease2 <- disease[order(disease$Year),]
+  award2 <- award[order(award$Year),]
+  
+  # Merge the two datatsets so the year have one to one relationship
+  disease_award <- merge(disease2,award2,by = "Year")
+  
+  c <- cor.test(disease_award$Value, disease_award$Award_defl, method = "spearman", 
+                use ="complete.obs")
+  result <- data.frame(c$estimate,c$p.value)
+  colnames(result) <- c("Coef","Pval")
+  return(result)
+}
+
+#### DALYs
+## "Chagas"
+# cor_func(Burden2,"2",data_awards2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func(Burden2,"2",data_awards2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func(Burden2,"2",data_awards2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func(Burden2,"2",data_awards2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func(Burden2,"2",data_awards2,"Dengue")
+# ## "Echinococcus"
+# cor_func(Burden2,"2",data_awards2,"Echinococcus")
+# ## "Hookworm"
+# cor_func(Burden2,"2",data_awards2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func(Burden2,"2",data_awards2,"Trichuriasis")
+# ## "Other"
+# cor_func(Burden2,"2",data_awards2,"Other")
+
+# #### YLLs (Years of Life Lost)
+# ## "Chagas"
+# cor_func(Burden2,"4",data_awards2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func(Burden2,"4",data_awards2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func(Burden2,"4",data_awards2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func(Burden2,"4",data_awards2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func(Burden2,"4",data_awards2,"Dengue")
+# ## "Echinococcus"
+# cor_func(Burden2,"4",data_awards2,"Echinococcus")
+# ## "Hookworm"
+# cor_func(Burden2,"4",data_awards2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func(Burden2,"4",data_awards2,"Trichuriasis")
+# ## "Other"
+# cor_func(Burden2,"4",data_awards2,"Other")
+# 
+# 
+# #### YLDs (Years Lived with Disability)
+# ## "Chagas"
+# cor_func(Burden2,"3",data_awards2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func(Burden2,"3",data_awards2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func(Burden2,"3",data_awards2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func(Burden2,"3",data_awards2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func(Burden2,"3",data_awards2,"Dengue")
+# ## "Echinococcus"
+# cor_func(Burden2,"3",data_awards2,"Echinococcus")
+# ## "Hookworm"
+# cor_func(Burden2,"3",data_awards2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func(Burden2,"3",data_awards2,"Trichuriasis")
+# ## "Other"
+# cor_func(Burden2,"3",data_awards2,"Other")
+# 
+# 
+# #### ## Deaths
+# ## "Chagas"
+# cor_func(Burden2,"1",data_awards2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func(Burden2,"1",data_awards2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func(Burden2,"1",data_awards2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func(Burden2,"1",data_awards2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func(Burden2,"1",data_awards2,"Dengue")
+# ## "Echinococcus"
+# cor_func(Burden2,"1",data_awards2,"Echinococcus")
+# ## "Hookworm"
+# cor_func(Burden2,"1",data_awards2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func(Burden2,"1",data_awards2,"Trichuriasis")
+# ## "Other"
+# cor_func(Burden2,"1",data_awards2,"Other")
+# 
+# #### Incidence
+# ## "Chagas"
+# cor_func(Burden2,"6",data_awards2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func(Burden2,"6",data_awards2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func(Burden2,"6",data_awards2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func(Burden2,"6",data_awards2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func(Burden2,"6",data_awards2,"Dengue")
+# ## "Echinococcus"
+# cor_func(Burden2,"6",data_awards2,"Echinococcus")
+# ## "Hookworm"
+# cor_func(Burden2,"6",data_awards2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func(Burden2,"6",data_awards2,"Trichuriasis")
+# ## "Other"
+# cor_func(Burden2,"6",data_awards2,"Other")
+# 
+# 
+# #### Prevalence
+# ## "Chagas"
+# cor_func(Burden2,"5",data_awards2,"Chagas")
+# ## "Leishmaniasis"
+# cor_func(Burden2,"5",data_awards2,"Leishmaniasis")
+# ## "Schistosomiasis"
+# cor_func(Burden2,"5",data_awards2,"Schistosomiasis")
+# ## "Lymphatic Filariasis"
+# cor_func(Burden2,"5",data_awards2,"Lymphatic Filariasis")
+# ## "Dengue"
+# cor_func(Burden2,"5",data_awards2,"Dengue")
+# ## "Echinococcus"
+# cor_func(Burden2,"5",data_awards2,"Echinococcus")
+# ## "Hookworm"
+# cor_func(Burden2,"5",data_awards2,"Hookworm")
+# ## "Trichuriasis"
+# cor_func(Burden2,"5",data_awards2,"Trichuriasis")
+# ## "Other"
+# cor_func(Burden2,"5",data_awards2,"Other")
+
+
+```
+
+
+
+
+
